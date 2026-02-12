@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #1e3a5f;
+  --navy-dark: #152942;
+  --sky: #7dd3fc;
+  --sky-light: #bae6fd;
+  --sky-dark: #0ea5e9;
+  --white: #ffffff;
+}
+
+body {
+  margin: 0;
+  font-family: "DM Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--white);
+  color: var(--navy);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+}
+
+/* Splash: single shared animation on parent - both glimmers use same position value */
+@property --glimmer-x {
+  syntax: "<percentage>";
+  initial-value: 150%;
+  inherits: true;
+}
+
+.splash-glimmer-wrapper {
+  --glimmer-x: 150%;
+  animation: splash-glimmer-sync 7.5s ease-in-out infinite;
+}
+
+/* Sweep ~5s, then 2.5s pause, repeat */
+@keyframes splash-glimmer-sync {
+  0% {
+    --glimmer-x: 150%;
+  }
+  66.67% {
+    --glimmer-x: -50%;
+  }
+  66.68%, 100% {
+    --glimmer-x: -50%;
+  }
+}
+
+/* Two-layer tagline: black outline behind, white + glimmer on top */
+.splash-tagline-wrapper {
+  position: relative;
+}
+
+.splash-tagline-outline {
+  position: absolute;
+  inset: 0;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 5px #000;
+  color: transparent;
+}
+
+.splash-tagline-fill {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(
+    105deg,
+    #ffffff 0%,
+    #ffffff 35%,
+    #7dd3fc 50%,
+    #ffffff 65%,
+    #ffffff 100%
+  );
+  background-size: 200% 100%;
+  background-position: var(--glimmer-x) 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.splash-logo-glimmer {
+  position: relative;
+  display: inline-flex;
+}
+
+.splash-logo-glimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-position: var(--glimmer-x) 0;
+  pointer-events: none;
+  -webkit-mask-image: url("/logo.png");
+  mask-image: url("/logo.png");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
