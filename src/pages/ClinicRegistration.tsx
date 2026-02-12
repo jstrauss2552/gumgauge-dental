@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { getClinic, saveClinic } from "../storage/clinicStorage";
-import type { Clinic } from "../storage/clinicStorage";
+import { getClinic } from "../storage/clinicStorage";
+import { addPendingClinicRegistration } from "../storage/pendingClinicStorage";
 
 export default function ClinicRegistration() {
   const [name, setName] = useState("");
@@ -11,26 +11,14 @@ export default function ClinicRegistration() {
   const [zip, setZip] = useState("");
   const [phone, setPhone] = useState("");
   const [deviceCount, setDeviceCount] = useState("1");
-  const [saved, setSaved] = useState<Clinic | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    const c = getClinic();
-    setSaved(c);
-    if (c) {
-      setName(c.name);
-      setAddress(c.address ?? "");
-      setCity(c.city ?? "");
-      setState(c.state ?? "");
-      setZip(c.zip ?? "");
-      setPhone(c.phone ?? "");
-      setDeviceCount(String(c.deviceCount ?? 1));
-    }
-  }, []);
+  const assignedClinic = getClinic();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseInt(deviceCount, 10);
-    const clinic = saveClinic({
+    addPendingClinicRegistration({
       name: name.trim(),
       address: address.trim() || undefined,
       city: city.trim() || undefined,
@@ -39,15 +27,22 @@ export default function ClinicRegistration() {
       phone: phone.trim() || undefined,
       deviceCount: Number.isNaN(num) || num < 1 ? 1 : num,
     });
-    setSaved(clinic);
+    setSubmitted(true);
   };
 
   return (
     <div className="p-8">
       <h1 className="text-2xl font-semibold text-navy mb-2">Clinic / Office Registration</h1>
       <p className="text-navy/70 mb-6">
-        Register your dental office. The clinic name appears on the dashboard and in the sidebar.
+        Submit your office info to GumGauge. Company admin will review and assign your clinic; once approved, your clinic name will appear on the dashboard.
       </p>
+
+      {assignedClinic && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
+          <p className="text-sm font-medium text-green-800">This device is assigned to: <strong>{assignedClinic.name}</strong></p>
+          <p className="text-xs text-green-700 mt-1">To change details, submit the form below; admin can reassign.</p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-sky/40 p-6 max-w-xl space-y-4">
         <div>
@@ -95,14 +90,14 @@ export default function ClinicRegistration() {
         </div>
         <div className="flex gap-3 pt-2">
           <button type="submit" className="px-4 py-2 bg-navy text-white rounded-lg font-medium hover:bg-navy-light">
-            Save clinic
+            Submit for approval
           </button>
           <Link to="/dashboard" className="px-4 py-2 border border-navy/30 rounded-lg font-medium inline-block">
             Back to dashboard
           </Link>
         </div>
-        {saved && (
-          <p className="text-green-700 text-sm mt-2">Saved. Clinic name will appear on the dashboard and sidebar.</p>
+        {submitted && (
+          <p className="text-green-700 text-sm mt-2">Submitted. GumGauge admin will review and assign your clinic.</p>
         )}
       </form>
     </div>

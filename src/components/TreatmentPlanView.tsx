@@ -9,6 +9,8 @@ interface TreatmentPlanViewProps {
   onAddPlan: (plan: Omit<FormalTreatmentPlan, "id">) => void;
   onUpdatePlan: (id: string, updates: Partial<FormalTreatmentPlan>) => void;
   onDeletePlan?: (id: string) => void;
+  /** Assign this plan’s procedures to the patient’s billing invoice. */
+  onAssignToBilling?: (plan: FormalTreatmentPlan) => void;
   readOnly?: boolean;
 }
 
@@ -16,7 +18,7 @@ function formatFee(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
-export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpdatePlan, onDeletePlan, readOnly }: TreatmentPlanViewProps) {
+export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpdatePlan, onDeletePlan, onAssignToBilling, readOnly }: TreatmentPlanViewProps) {
   const [adding, setAdding] = useState(false);
   const [newPhases, setNewPhases] = useState<TreatmentPlanPhase[]>([]);
   const [newStatus, setNewStatus] = useState<FormalTreatmentPlan["status"]>("Draft");
@@ -191,6 +193,11 @@ export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpd
                 </select>
               )}
               <button type="button" onClick={() => handlePrint(plan)} className="px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium">Print / Email</button>
+              {!readOnly && onAssignToBilling && (
+                <button type="button" onClick={() => onAssignToBilling(plan)} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+                  Assign to Billing
+                </button>
+              )}
               {!readOnly && onDeletePlan && <button type="button" onClick={() => onDeletePlan(plan.id)} className="text-xs text-red-600 hover:underline">Delete</button>}
             </div>
           </div>

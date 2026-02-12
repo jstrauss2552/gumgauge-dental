@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { getPatientById, updatePatient, deletePatient } from "../storage";
-import type { Patient, PatientImage, PerioExam, ClinicalNoteEntry, FormalTreatmentPlan, Prescription } from "../types";
+import type { Patient, PatientImage, PerioExam, ClinicalNoteEntry, FormalTreatmentPlan, Prescription, InvoiceLine } from "../types";
 import { APPOINTMENT_TYPES, PATIENT_IMAGE_TYPES } from "../types";
 import PerioChart from "../components/PerioChart";
 import ClinicalNotes from "../components/ClinicalNotes";
@@ -9,6 +9,7 @@ import TreatmentPlanView from "../components/TreatmentPlanView";
 import CollapsibleSection from "../components/CollapsibleSection";
 import { formatDisplayDate, formatISODateTimeInTimezone } from "../utils/dateFormat";
 import { TOP_INSURANCE_PROVIDERS, INSURANCE_OTHER } from "../constants/insuranceProviders";
+import { DENTIST_POSITIONS_FOR_CHART_DELETE } from "../constants/staffPositions";
 import { useTimezoneContext } from "../contexts/TimezoneContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useSpeechRecognition, transcriptToBulletPoints } from "../hooks/useSpeechRecognition";
@@ -78,6 +79,7 @@ export default function PatientChart() {
   const navigate = useNavigate();
   const { timezone } = useTimezoneContext();
   const { staff: signedInStaff, isSignedIn } = useAuth();
+  const canDeleteChart = isSignedIn && signedInStaff && (DENTIST_POSITIONS_FOR_CHART_DELETE as readonly string[]).includes(signedInStaff.position);
   const chartPath = `/dashboard/patients/${id}`;
   const signInReturnTo = chartPath + (searchParams.toString() ? `?${searchParams.toString()}` : "");
   const [patient, setPatient] = useState(getPatientById(id || ""));
@@ -350,28 +352,34 @@ export default function PatientChart() {
               >
                 Edit
               </button>
-              {!confirmDelete ? (
-                <button
-                  onClick={() => setConfirmDelete(true)}
-                  className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
-                >
-                  Delete
-                </button>
+              {canDeleteChart ? (
+                !confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleDelete}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium"
+                    >
+                      Confirm delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="px-4 py-2 border border-navy/30 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )
               ) : (
-                <>
-                  <button
-                    onClick={handleDelete}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium"
-                  >
-                    Confirm delete
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(false)}
-                    className="px-4 py-2 border border-navy/30 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                </>
+                <span className="px-4 py-2 text-navy/50 text-sm" title="Only a dentist from the clinic can delete a patient chart. Sign in as a dentist.">
+                  Delete (dentist only)
+                </span>
               )}
             </>
           ) : (
@@ -934,6 +942,32 @@ export default function PatientChart() {
             }}
             onDeletePlan={(planId) => {
               updatePatient(patient.id, { treatmentPlans: (patient.treatmentPlans ?? []).filter((p) => p.id !== planId) });
+              setPatient(getPatientById(patient.id)!);
+              setForm(getPatientById(patient.id));
+            }}
+            onAssignToBilling={(plan) => {
+              const appointmentDate = patient.dateOfAppointment || new Date().toISOString().slice(0, 10);
+              const now = new Date().toISOString();
+              const lines: InvoiceLine[] = plan.phases.flatMap((ph) =>
+                ph.procedures
+                  .filter((pr) => pr.description.trim() || (pr.estimatedFee != null && pr.estimatedFee > 0))
+                  .map((pr) => ({
+                    id: crypto.randomUUID(),
+                    appointmentDate,
+                    procedureCode: pr.code,
+                    description: pr.description || "Procedure",
+                    amount: pr.estimatedFee ?? 0,
+                    status: "Pending" as const,
+                    addedAt: now,
+                  }))
+              );
+              if (lines.length === 0) return;
+              const existing = patient.invoiceLines ?? [];
+              const total = lines.reduce((s, l) => s + l.amount, 0);
+              updatePatient(patient.id, {
+                invoiceLines: [...existing, ...lines],
+                balanceDue: (patient.balanceDue ?? 0) + total,
+              });
               setPatient(getPatientById(patient.id)!);
               setForm(getPatientById(patient.id));
             }}

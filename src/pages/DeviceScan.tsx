@@ -7,7 +7,7 @@ import { densityToHealthResult, densityToLightPercent } from "../types";
 import GumGaugeMouthView from "../components/GumGaugeMouthView";
 
 const MAX_FILE_SIZE_MB = 3;
-const FLASH_STEP_MS = 600;
+const FLASH_STEP_MS = 500;
 const TOTAL_FLASHES = 6;
 
 /** Build simulated GumGauge readings for all 32 teeth (for demo; real device would send these). */
@@ -235,17 +235,22 @@ export default function DeviceScan() {
           {scanInProgress && (
             <div className="mt-4 p-4 bg-sky/10 rounded-xl border border-sky/40">
               <p className="text-sm font-medium text-navy mb-2">
-                {flashStep < 3 ? "Preparing…" : "Confirming…"} ({flashStep + 1} of {TOTAL_FLASHES} flashes)
+                {flashStep < 3 ? "Preparing…" : flashStep < 5 ? "Confirming…" : "Complete"}
+                {flashStep < 5 && ` (${flashStep < 3 ? "yellow" : "green"} ${(flashStep % 3) + 1}/3)`}
               </p>
-              <div className="flex gap-1" role="progressbar" aria-valuenow={flashStep + 1} aria-valuemin={0} aria-valuemax={TOTAL_FLASHES} aria-label="Scan progress">
-                {[0, 1, 2, 3, 4, 5].map((i) => (
-                  <div
-                    key={i}
-                    className={`h-2 flex-1 rounded transition-colors ${i <= flashStep ? "bg-green-600" : "bg-sky/30"}`}
-                  />
-                ))}
-              </div>
-              <p className="text-xs text-navy/60 mt-1">Device sequence: 3 loading flashes, 3 confirmation flashes.</p>
+              <div
+                className={`h-3 w-full rounded overflow-hidden transition-colors duration-300 ${
+                  flashStep >= 3 ? "bg-green-600" : "bg-amber-400"
+                } ${flashStep < 5 ? "animate-pulse" : ""}`}
+                role="progressbar"
+                aria-valuenow={flashStep >= 5 ? TOTAL_FLASHES : flashStep + 1}
+                aria-valuemin={0}
+                aria-valuemax={TOTAL_FLASHES}
+                aria-label="Scan progress"
+              />
+              <p className="text-xs text-navy/60 mt-1">
+                {flashStep >= 5 ? "Scan complete. Add readings to chart below." : "Solid bar: 3 yellow flashes, then 3 green (3rd green holds)."}
+              </p>
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2 mt-2">

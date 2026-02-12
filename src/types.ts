@@ -61,6 +61,8 @@ export interface Patient {
   paymentMethods?: PaymentMethod[];
   /** Insurance claims sent or to be sent (surgery, large procedures). */
   insuranceClaims?: InsuranceClaim[];
+  /** Invoice line items (charges by appointment date); used for billing and receipts. */
+  invoiceLines?: InvoiceLine[];
   /** Prescriptions written for this patient. */
   prescriptions?: Prescription[];
   /** Recall/recurring interval in months (e.g. 6 for 6-month prophy). */
@@ -255,6 +257,29 @@ export interface PaymentHistoryEntry {
   date: string; // ISO date
   amount: number;
   note?: string;
+  /** Payment method used (if any). */
+  paymentMethodId?: string;
+  /** Amount applied from insurance (if split). */
+  amountWithInsurance?: number;
+  /** Amount paid out of pocket. */
+  amountOutOfPocket?: number;
+}
+
+/** One line on the patient invoice (charge by appointment date). */
+export interface InvoiceLine {
+  id: string;
+  /** Appointment date this charge is tied to (ISO date). */
+  appointmentDate: string;
+  procedureCode?: string;
+  description: string;
+  /** Total charge amount. */
+  amount: number;
+  /** Portion expected from insurance. */
+  amountWithInsurance?: number;
+  /** Portion patient pays out of pocket. */
+  amountOutOfPocket?: number;
+  status?: "Pending" | "Paid" | "Partially paid";
+  addedAt: string; // ISO
 }
 
 /** Stored payment method for front office (e.g. card on file). */
@@ -264,6 +289,12 @@ export interface PaymentMethod {
   /** Last 4 digits or identifier for display. */
   lastFour?: string;
   nickname?: string;
+  /** Name on card (for charging). */
+  nameOnCard?: string;
+  /** Expiry month 1–12 (optional). */
+  expiryMonth?: number;
+  /** Expiry year (e.g. 2028). */
+  expiryYear?: number;
   addedAt: string; // ISO
 }
 

@@ -56,3 +56,13 @@ export const STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS = [
   "Oral Surgeon",
   "Dental Hygienist",
 ] as const;
+
+/** Dentist-level positions that can delete a patient chart (clinic dentist / specialist). */
+export const DENTIST_POSITIONS_FOR_CHART_DELETE = [
+  "Dentist",
+  "Pediatric Dentist",
+  "Orthodontist",
+  "Endodontist",
+  "Periodontist",
+  "Oral Surgeon",
+] as const;
