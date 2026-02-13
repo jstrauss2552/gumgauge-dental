@@ -37,11 +37,12 @@ export default function Admin() {
         <p className="text-sky-light/90 text-sm text-center mb-6">
           Company login. View clinics and device usage.
         </p>
-        <form onSubmit={handleLogin} className="bg-white/10 rounded-xl border border-white/20 p-6 space-y-4">
+        <form onSubmit={handleLogin} className="bg-white/10 rounded-xl border border-white/20 p-6 space-y-4" autoComplete="off">
           <div>
             <label className="block text-sky-light/90 text-sm mb-1">Password</label>
             <input
               type="password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"

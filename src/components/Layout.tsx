@@ -6,8 +6,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { useClock } from "../hooks/useAppTimezone";
 import { getClinic } from "../storage/clinicStorage";
 import { US_TIMEZONES } from "../constants/timezones";
-import { STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS } from "../constants/staffPositions";
-import { ADMIN_SESSION_KEY } from "../constants/admin";
+import { STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS, DENTIST_POSITIONS_FOR_CHART_DELETE } from "../constants/staffPositions";
+import { ADMIN_SESSION_KEY, DEMO_MODE_KEY } from "../constants/admin";
 import type { TimezoneId } from "../constants/timezones";
 import GlobalSearch from "./GlobalSearch";
 
@@ -46,9 +46,13 @@ export default function Layout() {
         <nav className="flex-1 p-3 space-y-1">
           {(() => {
             const isAdmin = typeof sessionStorage !== "undefined" && sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
-            const navItems = staff && STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS.includes(staff.position as (typeof STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS)[number])
+            const isDemo = typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
+            let navItems = staff && STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS.includes(staff.position as (typeof STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS)[number])
               ? [...baseNavItems, { to: "/dashboard/my-patients", label: "My patients" }]
               : baseNavItems;
+            if (isDemo) {
+              navItems = navItems.filter((item) => ["/dashboard", "/dashboard/patients", "/dashboard/appointments", "/dashboard/clinic"].includes(item.to));
+            }
             const items = isAdmin ? [...navItems, { to: "/dashboard/clinic-log", label: "Clinic Log" }] : navItems;
             return items;
           })().map(({ to, label }) => (
@@ -88,7 +92,7 @@ export default function Layout() {
           {isSignedIn && staff ? (
             <>
               <p className="text-sky-light text-xs px-1 font-medium">
-                Signed in as {staff.firstName} {staff.lastName}
+                Signed in as {DENTIST_POSITIONS_FOR_CHART_DELETE.includes(staff.position as (typeof DENTIST_POSITIONS_FOR_CHART_DELETE)[number]) ? `Dr. ${staff.firstName} ${staff.lastName}` : `${staff.firstName} ${staff.lastName}`}
               </p>
               <button
                 type="button"
@@ -101,11 +105,25 @@ export default function Layout() {
                 Sign out
               </button>
             </>
+          ) : (typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1") ? (
+            <>
+              <p className="text-sky-light text-xs px-1 font-medium">Demo mode</p>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    sessionStorage.removeItem(DEMO_MODE_KEY);
+                  } catch {}
+                  navigate("/", { replace: true });
+                }}
+                className="w-full mt-2 px-4 py-2 text-xs font-medium rounded-lg bg-white/10 text-sky-light hover:bg-white/20 transition-colors"
+              >
+                Exit demo
+              </button>
+            </>
           ) : isAdmin ? (
             <>
-              <p className="text-sky-light text-xs px-1 font-medium">
-                Demo mode (Admin)
-              </p>
+              <p className="text-sky-light text-xs px-1 font-medium">Admin</p>
               <button
                 type="button"
                 onClick={() => {

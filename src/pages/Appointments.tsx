@@ -140,7 +140,22 @@ export default function Appointments() {
     refreshPatients();
   };
 
-  const filteredEvents = patientFilterId ? allEvents.filter((e) => e.patientId === patientFilterId) : allEvents;
+  const filteredEvents = useMemo(() => {
+    let events = patientFilterId ? allEvents.filter((e) => e.patientId === patientFilterId) : allEvents;
+    if (view === "today") {
+      events = events.filter((e) => e.date === today);
+    } else if (view === "upcoming") {
+      events = events.filter((e) => e.date >= today && upcomingDates.includes(e.date));
+    }
+    if (periodGroup === "month" && monthPeriodValue) {
+      events = events.filter((e) => getMonth(e.date) === monthPeriodValue);
+    } else if (periodGroup === "year" && periodValue) {
+      events = events.filter((e) => getYear(e.date) === periodValue);
+    } else if (periodGroup === "week" && periodValue) {
+      events = events.filter((e) => getWeekKey(e.date) === periodValue);
+    }
+    return events;
+  }, [allEvents, patientFilterId, view, today, upcomingDates, periodGroup, periodValue, monthPeriodValue]);
 
   return (
     <div className="p-8">

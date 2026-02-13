@@ -6,6 +6,7 @@ import type { Patient, PaymentMethod, InsuranceClaim, PaymentHistoryEntry, Invoi
 import { CDT_CODES, getDefaultFeeForCode } from "../constants/cdtCodes";
 import { CLAIM_OR_PROCEDURE_DESCRIPTIONS } from "../constants/autocompleteSuggestions";
 import { formatDisplayDate } from "../utils/dateFormat";
+import { getCardBrand, getLastFour } from "../utils/cardBrand";
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -20,8 +21,7 @@ export default function Billing() {
   const [paymentNote, setPaymentNote] = useState("");
   const [addPaymentMethodModal, setAddPaymentMethodModal] = useState(false);
   const [newMethodType, setNewMethodType] = useState<PaymentMethod["type"]>("Card");
-  const [newMethodLastFour, setNewMethodLastFour] = useState("");
-  const [newMethodNickname, setNewMethodNickname] = useState("");
+  const [newMethodCardNumber, setNewMethodCardNumber] = useState("");
   const [newMethodNameOnCard, setNewMethodNameOnCard] = useState("");
   const [newMethodExpiryMonth, setNewMethodExpiryMonth] = useState("");
   const [newMethodExpiryYear, setNewMethodExpiryYear] = useState("");
@@ -37,8 +37,6 @@ export default function Billing() {
   const [paymentOutOfPocket, setPaymentOutOfPocket] = useState("");
   const [paymentWithInsurance, setPaymentWithInsurance] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
-  const [deductibleAnnualInput, setDeductibleAnnualInput] = useState("");
-  const [deductibleRemainingInput, setDeductibleRemainingInput] = useState("");
   const [addChargesModal, setAddChargesModal] = useState(false);
   const [chargeAppointmentDate, setChargeAppointmentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedProcedureCodes, setSelectedProcedureCodes] = useState<Set<string>>(new Set());
@@ -46,8 +44,6 @@ export default function Billing() {
 
   const selectedPatient = selectedPatientId ? getPatientById(selectedPatientId) : null;
   const balanceDue = selectedPatient?.balanceDue ?? 0;
-  const deductibleRemaining = selectedPatient?.insuranceDeductibleRemaining ?? 0;
-  const deductibleAnnual = selectedPatient?.insuranceDeductibleAnnual ?? 0;
   const paymentMethods = selectedPatient?.paymentMethods ?? [];
   const paymentHistory = selectedPatient?.paymentHistory ?? [];
   const insuranceClaims = selectedPatient?.insuranceClaims ?? [];
@@ -99,12 +95,20 @@ export default function Billing() {
     if (!selectedPatient) return;
     const mm = newMethodExpiryMonth.trim() ? parseInt(newMethodExpiryMonth, 10) : undefined;
     const yy = newMethodExpiryYear.trim() ? parseInt(newMethodExpiryYear, 10) : undefined;
+    const patientName = `${selectedPatient.firstName} ${selectedPatient.lastName}`.trim();
+    const nameOnCard = newMethodNameOnCard.trim() || patientName;
+    let lastFour: string | undefined;
+    let cardBrand: string | undefined;
+    if (newMethodType === "Card" && newMethodCardNumber.replace(/\D/g, "").length >= 4) {
+      lastFour = getLastFour(newMethodCardNumber);
+      cardBrand = getCardBrand(newMethodCardNumber) ?? undefined;
+    }
     const method: PaymentMethod = {
       id: crypto.randomUUID(),
       type: newMethodType,
-      lastFour: newMethodLastFour.trim() || undefined,
-      nickname: newMethodNickname.trim() || undefined,
-      nameOnCard: newMethodNameOnCard.trim() || undefined,
+      lastFour,
+      cardBrand,
+      nameOnCard: nameOnCard || undefined,
       expiryMonth: mm != null && mm >= 1 && mm <= 12 ? mm : undefined,
       expiryYear: yy != null && yy >= 2020 && yy <= 2050 ? yy : undefined,
       addedAt: new Date().toISOString(),
@@ -113,8 +117,7 @@ export default function Billing() {
     updatePatient(selectedPatient.id, { paymentMethods: next });
     setAddPaymentMethodModal(false);
     setNewMethodType("Card");
-    setNewMethodLastFour("");
-    setNewMethodNickname("");
+    setNewMethodCardNumber("");
     setNewMethodNameOnCard("");
     setNewMethodExpiryMonth("");
     setNewMethodExpiryYear("");
@@ -151,14 +154,6 @@ export default function Billing() {
       setClaimCodes((c) => [...c, claimCodeToAdd.trim()]);
       setClaimCodeToAdd("");
     }
-  };
-
-  const saveDeductible = () => {
-    if (!selectedPatient) return;
-    const annual = Number(deductibleAnnualInput);
-    const remaining = Number(deductibleRemainingInput);
-    if (!Number.isNaN(annual) && annual >= 0 && !Number.isNaN(remaining) && remaining >= 0)
-      updatePatient(selectedPatient.id, { insuranceDeductibleAnnual: annual, insuranceDeductibleRemaining: remaining });
   };
 
   const toggleProcedureSelection = (code: string) => {
@@ -220,11 +215,10 @@ export default function Billing() {
   const sortedAppointmentDates = Object.keys(chargesByDate).sort();
 
   React.useEffect(() => {
-    if (selectedPatient) {
-      setDeductibleAnnualInput(selectedPatient.insuranceDeductibleAnnual != null ? String(selectedPatient.insuranceDeductibleAnnual) : "");
-      setDeductibleRemainingInput(selectedPatient.insuranceDeductibleRemaining != null ? String(selectedPatient.insuranceDeductibleRemaining) : "");
+    if (addPaymentMethodModal && selectedPatient) {
+      setNewMethodNameOnCard(`${selectedPatient.firstName} ${selectedPatient.lastName}`.trim());
     }
-  }, [selectedPatientId, selectedPatient?.insuranceDeductibleAnnual, selectedPatient?.insuranceDeductibleRemaining]);
+  }, [addPaymentMethodModal, selectedPatient?.id]);
 
   const allPatients = getPatients();
   const productionThisMonth = allPatients.reduce((s, p) => s + (p.paymentHistory ?? []).filter((pay) => pay.date.startsWith(new Date().toISOString().slice(0, 7))).reduce((sum, pay) => sum + pay.amount, 0), 0);
@@ -234,7 +228,7 @@ export default function Billing() {
     <div className="p-8">
       <h1 className="text-2xl font-semibold text-navy mb-2">Billing</h1>
       <p className="text-navy/70 mb-6">
-        View balance, insurance deductible, payment methods, and send claims to insurance. Procedure prices are based on standard fees (e.g. Cleaning $125).
+        View balance, payment methods, and send claims to insurance. Procedure prices are based on standard fees (e.g. Cleaning $125).
       </p>
 
       {isAdmin && (
@@ -323,36 +317,13 @@ export default function Billing() {
               </div>
             </div>
 
-            {/* Account summary: balance and deductible */}
+            {/* Account summary: balance */}
             <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
               <h3 className="text-sm font-semibold text-navy mb-3">Account summary</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-sky/10 rounded-lg p-3 border border-sky/30">
                   <p className="text-xs text-navy/70 uppercase tracking-wide">Balance due</p>
                   <p className="text-xl font-semibold text-navy mt-0.5">{formatCurrency(balanceDue)}</p>
-                </div>
-                <div className="bg-sky/10 rounded-lg p-3 border border-sky/30">
-                  <p className="text-xs text-navy/70 uppercase tracking-wide">Deductible remaining</p>
-                  <p className="text-xl font-semibold text-navy mt-0.5">
-                    {deductibleAnnual > 0 ? formatCurrency(deductibleRemaining) : "—"}
-                  </p>
-                  {deductibleAnnual > 0 && (
-                    <p className="text-xs text-navy/60 mt-0.5">of {formatCurrency(deductibleAnnual)} annual</p>
-                  )}
-                </div>
-              </div>
-              <div className="mt-3 pt-3 border-t border-sky/20">
-                <p className="text-xs text-navy/60 mb-2">Insurance deductible (for tracking)</p>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div>
-                    <label className="block text-xs text-navy/70 mb-0.5">Annual ($)</label>
-                    <input type="number" min={0} step={0.01} value={deductibleAnnualInput} onChange={(e) => setDeductibleAnnualInput(e.target.value)} onBlur={saveDeductible} className="w-28 px-3 py-2 border border-sky/60 rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-navy/70 mb-0.5">Remaining ($)</label>
-                    <input type="number" min={0} step={0.01} value={deductibleRemainingInput} onChange={(e) => setDeductibleRemainingInput(e.target.value)} onBlur={saveDeductible} className="w-28 px-3 py-2 border border-sky/60 rounded-lg text-sm" />
-                  </div>
-                  <button type="button" onClick={saveDeductible} className="mt-5 px-3 py-1.5 bg-sky/20 text-navy rounded-lg text-sm font-medium hover:bg-sky/30">Save</button>
                 </div>
               </div>
             </div>
@@ -413,8 +384,7 @@ export default function Billing() {
                       {paymentMethods.map((m) => (
                         <li key={m.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-sky/5 border border-sky/20 text-sm">
                           <span className="text-navy">
-                            {m.type}{m.lastFour ? ` •••• ${m.lastFour}` : ""}
-                            {m.nickname ? ` (${m.nickname})` : ""}
+                            {m.cardBrand || m.type}{m.lastFour ? ` •••• ${m.lastFour}` : ""}
                             {m.nameOnCard ? ` — ${m.nameOnCard}` : ""}
                             {m.expiryMonth != null && m.expiryYear != null ? ` Exp ${String(m.expiryMonth).padStart(2, "0")}/${m.expiryYear}` : ""}
                           </span>
@@ -581,7 +551,7 @@ export default function Billing() {
                 <select value={paymentMethodId} onChange={(e) => setPaymentMethodId(e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
                   <option value="">— None —</option>
                   {paymentMethods.map((m) => (
-                    <option key={m.id} value={m.id}>{m.type}{m.lastFour ? ` •••• ${m.lastFour}` : ""}{m.nickname ? ` (${m.nickname})` : ""}</option>
+                    <option key={m.id} value={m.id}>{m.cardBrand || m.type}{m.lastFour ? ` •••• ${m.lastFour}` : ""} — {m.nameOnCard || "Card"}</option>
                   ))}
                 </select>
               </div>
@@ -602,7 +572,7 @@ export default function Billing() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="add-method-title">
           <div className="bg-white rounded-xl shadow-xl border border-sky/40 p-6 max-w-md w-full">
             <h2 id="add-method-title" className="text-lg font-semibold text-navy mb-1">Add payment method</h2>
-            <p className="text-sm text-navy/70 mb-4">Store a card or method for this patient. Do not enter full card numbers—last 4 digits only.</p>
+            <p className="text-sm text-navy/70 mb-4">Card will be stored under {selectedPatient.firstName} {selectedPatient.lastName}. Brand is detected from the card number.</p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-navy mb-1">Type</label>
@@ -613,33 +583,52 @@ export default function Billing() {
                   <option value="Other">Other</option>
                 </select>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-navy mb-1">Name on card</label>
-                  <input type="text" value={newMethodNameOnCard} onChange={(e) => setNewMethodNameOnCard(e.target.value)} placeholder="As it appears on card" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-navy mb-1">Last 4 digits</label>
-                  <input type="text" maxLength={4} value={newMethodLastFour} onChange={(e) => setNewMethodLastFour(e.target.value.replace(/\D/g, ""))} placeholder="1234" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-navy mb-1">Expiry month</label>
-                  <input type="number" min={1} max={12} value={newMethodExpiryMonth} onChange={(e) => setNewMethodExpiryMonth(e.target.value)} placeholder="MM" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-navy mb-1">Expiry year</label>
-                  <input type="number" min={2024} max={2050} value={newMethodExpiryYear} onChange={(e) => setNewMethodExpiryYear(e.target.value)} placeholder="YYYY" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
-                </div>
-              </div>
+              {newMethodType === "Card" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-navy mb-1">Card number</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="cc-number"
+                      value={newMethodCardNumber}
+                      onChange={(e) => setNewMethodCardNumber(e.target.value.replace(/\D/g, "").slice(0, 19))}
+                      placeholder="4111 1111 1111 1111"
+                      className="w-full px-3 py-2 border border-sky/60 rounded-lg font-mono"
+                    />
+                    {newMethodCardNumber.replace(/\D/g, "").length >= 4 && getCardBrand(newMethodCardNumber) && (
+                      <p className="text-xs text-navy/60 mt-1">Detected: {getCardBrand(newMethodCardNumber)}</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-navy mb-1">Expiry month</label>
+                      <select value={newMethodExpiryMonth} onChange={(e) => setNewMethodExpiryMonth(e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
+                        <option value="">Month</option>
+                        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-navy mb-1">Expiry year</label>
+                      <select value={newMethodExpiryYear} onChange={(e) => setNewMethodExpiryYear(e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
+                        <option value="">Year</option>
+                        {Array.from({ length: 21 }, (_, i) => new Date().getFullYear() + i).map((y) => (
+                          <option key={y} value={String(y)}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
               <div>
-                <label className="block text-sm font-medium text-navy mb-1">Nickname (optional)</label>
-                <input type="text" value={newMethodNickname} onChange={(e) => setNewMethodNickname(e.target.value)} placeholder="e.g. Visa on file" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+                <label className="block text-sm font-medium text-navy mb-1">Account holder (defaults to patient name)</label>
+                <input type="text" value={newMethodNameOnCard} onChange={(e) => setNewMethodNameOnCard(e.target.value)} placeholder={`${selectedPatient.firstName} ${selectedPatient.lastName}`} className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
               </div>
             </div>
             <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-sky/30">
-              <button type="button" onClick={() => setAddPaymentMethodModal(false)} className="px-4 py-2 border border-navy/30 rounded-lg font-medium text-navy hover:bg-sky/10">Cancel</button>
+              <button type="button" onClick={() => { setAddPaymentMethodModal(false); setNewMethodCardNumber(""); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium text-navy hover:bg-sky/10">Cancel</button>
               <button type="button" onClick={handleAddPaymentMethod} className="px-4 py-2 bg-navy text-white rounded-lg font-medium hover:bg-navy-light">Save payment method</button>
             </div>
           </div>
@@ -726,8 +715,6 @@ export default function Billing() {
               For {selectedPatient.firstName} {selectedPatient.lastName}. In production this would query the payer.
             </p>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-navy/70">Deductible (annual)</span><span className="font-medium">{formatCurrency(selectedPatient.insuranceDeductibleAnnual ?? 0)}</span></div>
-              <div className="flex justify-between"><span className="text-navy/70">Deductible (remaining)</span><span className="font-medium">{formatCurrency(selectedPatient.insuranceDeductibleRemaining ?? 0)}</span></div>
               <div className="flex justify-between"><span className="text-navy/70">Preventive coverage</span><span className="font-medium">100%</span></div>
               <div className="flex justify-between"><span className="text-navy/70">Basic coverage</span><span className="font-medium">80%</span></div>
               <div className="flex justify-between"><span className="text-navy/70">Major coverage</span><span className="font-medium">50%</span></div>

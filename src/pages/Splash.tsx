@@ -1,20 +1,25 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Logo from "../components/Logo";
-import { ADMIN_SESSION_KEY } from "../constants/admin";
+import { DEMO_MODE_KEY } from "../constants/admin";
 
 export default function Splash() {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
 
+  /** Start System: unlogged-in view of a clinic with option to sign in. */
   const handleStart = () => {
     setStarting(true);
+    try {
+      sessionStorage.removeItem(DEMO_MODE_KEY);
+    } catch {}
     setTimeout(() => navigate("/dashboard", { replace: true }), 400);
   };
 
+  /** Demo: demo-only clinic view for potential customers (no real data / limited view). */
   const handleDemo = () => {
     try {
-      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+      sessionStorage.setItem(DEMO_MODE_KEY, "1");
     } catch {}
     navigate("/dashboard", { replace: true });
   };
@@ -26,7 +31,7 @@ export default function Splash() {
           to="/admin"
           className="px-4 py-2 text-sky-light text-sm font-medium hover:text-white border border-white/30 rounded-lg hover:bg-white/10"
         >
-          Admin Log-In
+          Admin
         </Link>
       </div>
       {/* Glimmer sweep across logo and text (runs until user leaves via button) */}
@@ -59,7 +64,7 @@ export default function Splash() {
           to="/signin"
           className="px-10 py-4 bg-white/10 text-white font-medium text-lg rounded-xl border-2 border-white/40 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-navy transition-all inline-block text-center"
         >
-          Sign in
+          Log-in
         </Link>
       </div>
     </div>

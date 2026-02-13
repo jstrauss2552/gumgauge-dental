@@ -334,12 +334,13 @@ export interface InvoiceLine {
 export interface PaymentMethod {
   id: string;
   type: "Card" | "Check" | "Cash" | "Other";
-  /** Last 4 digits or identifier for display. */
+  /** Last 4 digits for display (from full card number at add time). */
   lastFour?: string;
-  nickname?: string;
-  /** Name on card (for charging). */
+  /** Card brand: Visa, Mastercard, Discover, American Express (detected from number). */
+  cardBrand?: string;
+  /** Name on card / account holder (often auto-set to patient name). */
   nameOnCard?: string;
-  /** Expiry month 1–12 (optional). */
+  /** Expiry month 1–12. */
   expiryMonth?: number;
   /** Expiry year (e.g. 2028). */
   expiryYear?: number;

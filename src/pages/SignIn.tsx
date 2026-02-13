@@ -37,12 +37,12 @@ export default function SignIn() {
         <p className="text-sky-light/90 text-sm text-center mb-6">
           For employed staff. Enter your assigned login credentials.
         </p>
-        <form onSubmit={handleSubmit} className="bg-white/10 rounded-xl border border-white/20 p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white/10 rounded-xl border border-white/20 p-6 space-y-4" autoComplete="off">
           <div>
             <label className="block text-sky-light/90 text-sm mb-1">Login email or username</label>
             <input
               type="text"
-              autoComplete="username"
+              autoComplete="off"
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
               placeholder="e.g. jane@practice.com"
@@ -53,7 +53,7 @@ export default function SignIn() {
             <label className="block text-sky-light/90 text-sm mb-1">Password</label>
             <input
               type="password"
-              autoComplete="current-password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
