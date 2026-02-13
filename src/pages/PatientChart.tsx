@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { getPatientById, updatePatient, deletePatient } from "../storage";
-import type { Patient, PatientImage, PerioExam, ClinicalNoteEntry, FormalTreatmentPlan, Prescription, InvoiceLine } from "../types";
+import { addAuditEntry } from "../storage/auditStorage";
+import type { Patient, PatientImage, PerioExam, ClinicalNoteEntry, FormalTreatmentPlan, Prescription, InvoiceLine, ToothCondition, PatientDocument } from "../types";
 import { APPOINTMENT_TYPES, PATIENT_IMAGE_TYPES } from "../types";
 import PerioChart from "../components/PerioChart";
 import ClinicalNotes from "../components/ClinicalNotes";
@@ -9,11 +10,23 @@ import TreatmentPlanView from "../components/TreatmentPlanView";
 import CollapsibleSection from "../components/CollapsibleSection";
 import { formatDisplayDate, formatISODateTimeInTimezone } from "../utils/dateFormat";
 import { TOP_INSURANCE_PROVIDERS, INSURANCE_OTHER } from "../constants/insuranceProviders";
+import {
+  COMMON_ALLERGIES,
+  COMMON_MEDICAL_CONDITIONS,
+  COMMON_CURRENT_MEDICATIONS,
+  INSURANCE_PLANS,
+  APPOINTMENT_TYPE_OTHER,
+  CHIEF_COMPLAINTS,
+  COMMON_OPERATORIES,
+  IMAGE_LABEL_SUGGESTIONS,
+} from "../constants/autocompleteSuggestions";
 import { DENTIST_POSITIONS_FOR_CHART_DELETE } from "../constants/staffPositions";
 import { useTimezoneContext } from "../contexts/TimezoneContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useSpeechRecognition, transcriptToBulletPoints } from "../hooks/useSpeechRecognition";
 import PrescriptionView from "../components/PrescriptionView";
+import MedicalAlertsBanner from "../components/MedicalAlertsBanner";
+import ToothChart from "../components/ToothChart";
 const MAX_PATIENT_IMAGES = 10;
 const MAX_FILE_SIZE_MB = 3;
 
@@ -28,6 +41,8 @@ function Field({
   rows,
   preWrap,
   required,
+  listId,
+  options,
 }: {
   label: string;
   value: string;
@@ -39,6 +54,8 @@ function Field({
   rows?: number;
   preWrap?: boolean;
   required?: boolean;
+  listId?: string;
+  options?: readonly string[];
 }) {
   return (
     <div className={rows ? "md:col-span-2" : ""}>
@@ -58,13 +75,24 @@ function Field({
             className="w-full px-3 py-2 border border-sky/60 rounded-lg resize-y"
           />
         ) : (
-          <input
-            type={type}
-            value={formValue}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full px-3 py-2 border border-sky/60 rounded-lg"
-          />
+          <>
+            <input
+              type={type}
+              value={formValue}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder={placeholder}
+              className="w-full px-3 py-2 border border-sky/60 rounded-lg"
+              list={listId}
+              autoComplete={listId ? "off" : undefined}
+            />
+            {listId && options && options.length > 0 && (
+              <datalist id={listId}>
+                {options.map((opt) => (
+                  <option key={opt} value={opt} />
+                ))}
+              </datalist>
+            )}
+          </>
         )
       ) : (
         <p className={`text-navy ${preWrap ? "whitespace-pre-wrap" : ""}`}>{value || "—"}</p>
@@ -127,6 +155,10 @@ export default function PatientChart() {
       }, { replace: true });
     }
   }, [patient?.id, patient?.currentVisitStartedAt, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (patient?.id) addAuditEntry({ timestamp: new Date().toISOString(), action: "chart.view", entityType: "patient", entityId: patient.id, details: `${patient.firstName} ${patient.lastName}` });
+  }, [patient?.id]);
 
   if (!patient) {
     return (
@@ -337,11 +369,6 @@ export default function PatientChart() {
           <h1 className="text-2xl font-semibold text-navy">
             Patient chart: {patient.firstName} {patient.lastName}
           </h1>
-          {patient.allergies && (
-            <p className="mt-1 text-sm text-amber-700 bg-amber-100 inline-block px-2 py-0.5 rounded">
-              Allergies: {patient.allergies}
-            </p>
-          )}
         </div>
         <div className="flex gap-2">
           {!editing ? (
@@ -403,6 +430,46 @@ export default function PatientChart() {
             </>
           )}
         </div>
+      </div>
+
+      <MedicalAlertsBanner
+        allergies={patient.allergies}
+        medicalConditions={patient.medicalConditions}
+        currentMedications={patient.currentMedications}
+      />
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <Link to={`/dashboard/billing?patient=${patient.id}`} className="px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10">Send statement</Link>
+        <Link to={`/dashboard/appointments?patient=${patient.id}`} className="px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10">Schedule next</Link>
+        <Link to={`/dashboard/recall`} className="px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10">Recall list</Link>
+        {isSignedIn && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
+                updatePatient(patient.id, { lastRecallReminderSent: today });
+                setPatient(getPatientById(patient.id)!);
+                setForm(getPatientById(patient.id));
+              }}
+              className="px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
+            >
+              Send recall reminder
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date().toISOString().slice(0, 10);
+                updatePatient(patient.id, { lastAppointmentReminderSent: today });
+                setPatient(getPatientById(patient.id)!);
+                setForm(getPatientById(patient.id));
+              }}
+              className="px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
+            >
+              Send appointment reminder
+            </button>
+          </>
+        )}
       </div>
 
       {patient.currentVisitStartedAt && (
@@ -556,9 +623,9 @@ export default function PatientChart() {
 
         <CollapsibleSection id="medical" title="Medical history" subtitle="Relevant for treatment safety (e.g. drug allergies, conditions affecting care)">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Allergies" value={patient.allergies ?? ""} editing={!!editing && !!form} formValue={form?.allergies ?? ""} placeholder="e.g. Penicillin, latex" onChange={(v) => update("allergies", v)} />
-            <Field label="Medical conditions" value={patient.medicalConditions ?? ""} editing={!!editing && !!form} formValue={form?.medicalConditions ?? ""} placeholder="e.g. Diabetes, hypertension" onChange={(v) => update("medicalConditions", v)} />
-            <Field label="Current medications" value={patient.currentMedications ?? ""} editing={!!editing && !!form} formValue={form?.currentMedications ?? ""} placeholder="List current medications" onChange={(v) => update("currentMedications", v)} />
+            <Field label="Allergies" value={patient.allergies ?? ""} editing={!!editing && !!form} formValue={form?.allergies ?? ""} placeholder="e.g. Penicillin, latex" listId="patient-allergies-list" options={COMMON_ALLERGIES} onChange={(v) => update("allergies", v)} />
+            <Field label="Medical conditions" value={patient.medicalConditions ?? ""} editing={!!editing && !!form} formValue={form?.medicalConditions ?? ""} placeholder="e.g. Diabetes, hypertension" listId="patient-medical-conditions-list" options={COMMON_MEDICAL_CONDITIONS} onChange={(v) => update("medicalConditions", v)} />
+            <Field label="Current medications" value={patient.currentMedications ?? ""} editing={!!editing && !!form} formValue={form?.currentMedications ?? ""} placeholder="List current medications" listId="patient-current-medications-list" options={COMMON_CURRENT_MEDICATIONS} onChange={(v) => update("currentMedications", v)} />
             <Field label="Emergency contact name" value={patient.emergencyContactName ?? ""} editing={!!editing && !!form} formValue={form?.emergencyContactName ?? ""} onChange={(v) => update("emergencyContactName", v)} />
             <Field label="Emergency contact phone" value={patient.emergencyContactPhone ?? ""} editing={!!editing && !!form} formValue={form?.emergencyContactPhone ?? ""} onChange={(v) => update("emergencyContactPhone", v)} />
           </div>
@@ -591,6 +658,7 @@ export default function PatientChart() {
                       <input
                         type="text"
                         autoComplete="off"
+                        list="patient-insurance-custom-list"
                         value={form.insuranceProvider === INSURANCE_OTHER ? insuranceOtherCustom : (form.insuranceProvider || "")}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -603,6 +671,11 @@ export default function PatientChart() {
                         placeholder="Type your insurance provider name here"
                         className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy"
                       />
+                      <datalist id="patient-insurance-custom-list">
+                        {TOP_INSURANCE_PROVIDERS.map((name) => (
+                          <option key={name} value={name} />
+                        ))}
+                      </datalist>
                     </div>
                   )}
                 </>
@@ -610,7 +683,7 @@ export default function PatientChart() {
                 <p className="text-navy">{patient.insuranceProvider || "—"}</p>
               )}
             </div>
-            <Field label="Plan name" value={patient.insurancePlan ?? ""} editing={!!editing && !!form} formValue={form?.insurancePlan ?? ""} onChange={(v) => update("insurancePlan", v)} />
+            <Field label="Plan name" value={patient.insurancePlan ?? ""} editing={!!editing && !!form} formValue={form?.insurancePlan ?? ""} listId="patient-insurance-plan-list" options={INSURANCE_PLANS} onChange={(v) => update("insurancePlan", v)} />
             <Field label="Member ID" value={patient.insuranceMemberId ?? ""} editing={!!editing && !!form} formValue={form?.insuranceMemberId ?? ""} onChange={(v) => update("insuranceMemberId", v)} />
             <Field label="Group number" value={patient.insuranceGroupNumber ?? ""} editing={!!editing && !!form} formValue={form?.insuranceGroupNumber ?? ""} onChange={(v) => update("insuranceGroupNumber", v)} />
           </div>
@@ -641,11 +714,18 @@ export default function PatientChart() {
                       <label className="block text-sm text-navy/70 mb-1">Describe appointment type (free response)</label>
                       <input
                         type="text"
+                        list="patient-appointment-type-other-list"
+                        autoComplete="off"
                         value={form.appointmentTypeOther ?? ""}
                         onChange={(e) => update("appointmentTypeOther", e.target.value)}
                         placeholder="e.g. Implant consultation, TMJ follow-up"
                         className="w-full px-3 py-2 border border-sky/60 rounded-lg"
                       />
+                      <datalist id="patient-appointment-type-other-list">
+                        {APPOINTMENT_TYPE_OTHER.map((t) => (
+                          <option key={t} value={t} />
+                        ))}
+                      </datalist>
                     </div>
                   )}
                 </>
@@ -659,9 +739,9 @@ export default function PatientChart() {
             </div>
             <Field label="Doctor (performing appointment)" value={patient.appointmentDoctor ?? ""} editing={!!editing && !!form} formValue={form?.appointmentDoctor ?? ""} placeholder="e.g. Dr. Smith" onChange={(v) => update("appointmentDoctor", v)} />
             <Field label="Duration (minutes)" value={patient.appointmentDurationMinutes != null ? String(patient.appointmentDurationMinutes) : ""} editing={!!editing && !!form} formValue={form?.appointmentDurationMinutes != null ? String(form.appointmentDurationMinutes) : ""} placeholder="e.g. 60" onChange={(v) => update("appointmentDurationMinutes", v === "" ? "" : v)} />
-            <Field label="Room / operatory" value={patient.appointmentRoom ?? ""} editing={!!editing && !!form} formValue={form?.appointmentRoom ?? ""} placeholder="e.g. Op 1" onChange={(v) => update("appointmentRoom", v)} />
+            <Field label="Room / operatory" value={patient.appointmentRoom ?? ""} editing={!!editing && !!form} formValue={form?.appointmentRoom ?? ""} placeholder="e.g. Op 1" listId="patient-room-list" options={COMMON_OPERATORIES} onChange={(v) => update("appointmentRoom", v)} />
             <Field label="Next appointment duration (min)" value={patient.nextAppointmentDurationMinutes != null ? String(patient.nextAppointmentDurationMinutes) : ""} editing={!!editing && !!form} formValue={form?.nextAppointmentDurationMinutes != null ? String(form.nextAppointmentDurationMinutes) : ""} placeholder="e.g. 30" onChange={(v) => update("nextAppointmentDurationMinutes", v === "" ? "" : v)} />
-            <Field label="Next appointment room" value={patient.nextAppointmentRoom ?? ""} editing={!!editing && !!form} formValue={form?.nextAppointmentRoom ?? ""} placeholder="e.g. Op 2" onChange={(v) => update("nextAppointmentRoom", v)} />
+            <Field label="Next appointment room" value={patient.nextAppointmentRoom ?? ""} editing={!!editing && !!form} formValue={form?.nextAppointmentRoom ?? ""} placeholder="e.g. Op 2" listId="patient-next-room-list" options={COMMON_OPERATORIES} onChange={(v) => update("nextAppointmentRoom", v)} />
             <Field label="Recall / recurring (months)" value={patient.recallIntervalMonths != null ? String(patient.recallIntervalMonths) : ""} editing={!!editing && !!form} formValue={form?.recallIntervalMonths != null ? String(form.recallIntervalMonths) : ""} placeholder="e.g. 6 for 6-month prophy" onChange={(v) => update("recallIntervalMonths", v === "" ? "" : v)} />
           </div>
         </CollapsibleSection>
@@ -678,8 +758,15 @@ export default function PatientChart() {
                     value={newImageLabel}
                     onChange={(e) => setNewImageLabel(e.target.value)}
                     placeholder="e.g. Panoramic X-ray Jan 2026"
+                    list="patient-image-label-list"
+                    autoComplete="off"
                     className="w-full px-3 py-2 border border-sky/60 rounded-lg text-sm"
                   />
+                  <datalist id="patient-image-label-list">
+                    {IMAGE_LABEL_SUGGESTIONS.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="min-w-[120px]">
                   <label className="block text-xs text-navy/70 mb-1">Type</label>
@@ -765,7 +852,7 @@ export default function PatientChart() {
 
         <CollapsibleSection id="clinical" title="Clinical">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Chief complaint" value={patient.chiefComplaint ?? ""} editing={!!editing && !!form} formValue={form?.chiefComplaint ?? ""} placeholder="Reason for visit" onChange={(v) => update("chiefComplaint", v)} />
+            <Field label="Chief complaint" value={patient.chiefComplaint ?? ""} editing={!!editing && !!form} formValue={form?.chiefComplaint ?? ""} placeholder="Reason for visit" listId="patient-chief-complaint-list" options={CHIEF_COMPLAINTS} onChange={(v) => update("chiefComplaint", v)} />
             <Field label="Last cleaning date" value={patient.lastCleaningDate ? formatDisplayDate(patient.lastCleaningDate) : ""} editing={!!editing && !!form} formValue={form?.lastCleaningDate ?? ""} type="date" onChange={(v) => update("lastCleaningDate", v)} />
             <Field label="Treatment plan" value={patient.treatmentPlan ?? ""} editing={!!editing && !!form} formValue={form?.treatmentPlan ?? ""} type="textarea" rows={3} preWrap placeholder="Planned treatment" onChange={(v) => update("treatmentPlan", v)} />
           </div>
@@ -797,6 +884,18 @@ export default function PatientChart() {
             }}
             onDeleteExam={(examId) => {
               updatePatient(patient.id, { perioExams: (patient.perioExams ?? []).filter((e) => e.id !== examId) });
+              setPatient(getPatientById(patient.id)!);
+              setForm(getPatientById(patient.id));
+            }}
+            readOnly={!isSignedIn}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection id="restorative" title="Restorative chart" subtitle="Tooth-by-tooth conditions: caries, existing restorations, missing, planned. Click a tooth to set or change.">
+          <ToothChart
+            conditions={patient.toothConditions ?? []}
+            onChange={(next) => {
+              updatePatient(patient.id, { toothConditions: next });
               setPatient(getPatientById(patient.id)!);
               setForm(getPatientById(patient.id));
             }}
@@ -924,6 +1023,50 @@ export default function PatientChart() {
           )}
         </CollapsibleSection>
 
+        <CollapsibleSection id="documents" title="Documents" badge={patient.documents?.length ? `${patient.documents.length}` : undefined} subtitle="Consent forms, referrals, lab slips, insurance documents.">
+          <ul className="space-y-2 mb-3">
+            {(patient.documents ?? []).map((doc) => (
+              <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-sky/20 last:border-0">
+                <span className="text-navy font-medium">{doc.type}: {doc.title}</span>
+                <span className="text-sm text-navy/70">{formatDisplayDate(doc.date)}</span>
+                {isSignedIn && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updatePatient(patient.id, { documents: (patient.documents ?? []).filter((d) => d.id !== doc.id) });
+                      setPatient(getPatientById(patient.id)!);
+                      setForm(getPatientById(patient.id));
+                    }}
+                    className="text-xs text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {isSignedIn && (
+            <button
+              type="button"
+              onClick={() => {
+                const typeRaw = prompt("Type (Consent, Referral, Lab, Insurance, Other)", "Consent");
+                const title = prompt("Title", "");
+                const date = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10));
+                if (!title || !date) return;
+                const validTypes: PatientDocument["type"][] = ["Consent", "Referral", "Lab", "Insurance", "Other"];
+                const type = typeRaw && validTypes.includes(typeRaw as PatientDocument["type"]) ? (typeRaw as PatientDocument["type"]) : "Other";
+                const newDoc: PatientDocument = { id: crypto.randomUUID(), type, title, date, addedAt: new Date().toISOString() };
+                updatePatient(patient.id, { documents: [...(patient.documents ?? []), newDoc] });
+                setPatient(getPatientById(patient.id)!);
+                setForm(getPatientById(patient.id));
+              }}
+              className="px-3 py-2 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
+            >
+              + Add document
+            </button>
+          )}
+        </CollapsibleSection>
+
         <CollapsibleSection id="treatment-plans" title="Treatment plans" subtitle="Formal plans with phases, procedures, and estimated costs (prices auto-fill from procedure codes). Printable.">
           <TreatmentPlanView
             plans={patient.treatmentPlans ?? []}
@@ -1016,8 +1159,15 @@ export default function PatientChart() {
                   value={quickAddLabel}
                   onChange={(e) => setQuickAddLabel(e.target.value)}
                   placeholder="e.g. Panoramic X-ray Jan 2026"
+                  list="patient-quick-add-label-list"
+                  autoComplete="off"
                   className="w-full px-3 py-2 border border-sky/60 rounded-lg"
                 />
+                <datalist id="patient-quick-add-label-list">
+                  {IMAGE_LABEL_SUGGESTIONS.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-sm text-navy/70 mb-1">Type</label>

@@ -1,3 +1,5 @@
+import type { AppointmentStatus } from "../types";
+
 /**
  * Appointment event for calendar/list. Derived from patient's dateOfAppointment/dateOfNextAppointment
  * or from first-class Appointment records if we add them later.
@@ -13,4 +15,6 @@ export interface AppointmentEvent {
   provider?: string;
   room?: string;
   patientName: string;
+  /** Flow status for today's appointment (Scheduled, Checked In, In Chair, With Doctor, Checkout, No-Show, Broken). */
+  status?: AppointmentStatus;
 }

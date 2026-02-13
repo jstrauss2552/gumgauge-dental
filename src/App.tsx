@@ -18,6 +18,7 @@ import DeviceScan from "./pages/DeviceScan";
 import RecallReport from "./pages/RecallReport";
 import AuditLog from "./pages/AuditLog";
 import Billing from "./pages/Billing";
+import Analytics from "./pages/Analytics";
 import ClinicRegistration from "./pages/ClinicRegistration";
 import ClinicLog from "./pages/ClinicLog";
 import Admin from "./pages/Admin";
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="staff/:id" element={<StaffDetail />} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="billing" element={<Billing />} />
+        <Route path="analytics" element={<Analytics />} />
         <Route path="my-patients" element={<MyPatients />} />
         <Route path="device-scan" element={<DeviceScan />} />
         <Route path="recall" element={<RecallReport />} />

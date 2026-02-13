@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { FormalTreatmentPlan, TreatmentPlanPhase, TreatmentPlanProcedure } from "../types";
 import { formatDisplayDate } from "../utils/dateFormat";
 import { CDT_CODES, getDefaultFeeForCode } from "../constants/cdtCodes";
+import { TREATMENT_PHASE_NAMES, CLAIM_OR_PROCEDURE_DESCRIPTIONS } from "../constants/autocompleteSuggestions";
 
 interface TreatmentPlanViewProps {
   plans: FormalTreatmentPlan[];
@@ -106,7 +107,7 @@ export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpd
           ) : (
             newPhases.map((ph) => (
               <div key={ph.id} className="border border-sky/30 rounded-lg p-3 bg-white">
-                <input type="text" value={ph.name} onChange={(e) => updatePhase(ph.id, { name: e.target.value })} placeholder="Phase name (e.g. Phase 1: Emergency)" className="w-full px-3 py-2 border border-sky/60 rounded-lg text-sm mb-2" />
+                <input type="text" value={ph.name} onChange={(e) => updatePhase(ph.id, { name: e.target.value })} placeholder="Phase name (e.g. Phase 1: Emergency)" list="treatment-phase-name-list" autoComplete="off" className="w-full px-3 py-2 border border-sky/60 rounded-lg text-sm mb-2" />
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-sky/10">
@@ -139,7 +140,7 @@ export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpd
                             ))}
                           </select>
                         </td>
-                        <td className="px-2 py-1"><input type="text" value={pr.description} onChange={(e) => updateProcedure(ph.id, i, { description: e.target.value })} placeholder="Procedure" className="w-full px-2 py-1 border rounded" /></td>
+                        <td className="px-2 py-1"><input type="text" value={pr.description} onChange={(e) => updateProcedure(ph.id, i, { description: e.target.value })} placeholder="Procedure" list="treatment-procedure-desc-list" autoComplete="off" className="w-full px-2 py-1 border rounded" /></td>
                         <td className="px-2 py-1 text-right"><input type="number" min={0} step={0.01} value={pr.estimatedFee ?? ""} onChange={(e) => updateProcedure(ph.id, i, { estimatedFee: e.target.value === "" ? undefined : Number(e.target.value) })} placeholder="0" className="w-24 px-2 py-1 border rounded text-right" /></td>
                         <td><button type="button" onClick={() => removeProcedure(ph.id, i)} className="text-red-600 text-xs">×</button></td>
                       </tr>
@@ -150,6 +151,16 @@ export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpd
               </div>
             ))
           )}
+          <datalist id="treatment-phase-name-list">
+            {TREATMENT_PHASE_NAMES.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+          <datalist id="treatment-procedure-desc-list">
+            {CLAIM_OR_PROCEDURE_DESCRIPTIONS.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
           {newPhases.length > 0 && (
             <>
               <button type="button" onClick={addPhase} className="px-3 py-2 border border-sky/60 rounded-lg text-sm">+ Add another phase</button>
@@ -183,11 +194,18 @@ export default function TreatmentPlanView({ plans, patientName, onAddPlan, onUpd
               {!readOnly && (
                 <select
                   value={plan.status ?? "Draft"}
-                  onChange={(e) => onUpdatePlan(plan.id, { status: e.target.value as FormalTreatmentPlan["status"] })}
+                  onChange={(e) => {
+                    const v = e.target.value as FormalTreatmentPlan["status"];
+                    const now = new Date().toISOString();
+                    if (v === "Accepted") onUpdatePlan(plan.id, { status: "Accepted", acceptedAt: now });
+                    else if (v === "Declined") onUpdatePlan(plan.id, { status: "Declined", declinedAt: now });
+                    else onUpdatePlan(plan.id, { status: v });
+                  }}
                   className="px-2 py-1 border border-sky/60 rounded text-sm"
                 >
                   <option value="Draft">Draft</option>
                   <option value="Accepted">Accepted</option>
+                  <option value="Declined">Declined</option>
                   <option value="In progress">In progress</option>
                   <option value="Completed">Completed</option>
                 </select>

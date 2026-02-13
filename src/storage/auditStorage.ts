@@ -54,3 +54,10 @@ export function getAuditEntries(options?: { entityType?: string; entityId?: stri
   if (options?.limit) list = list.slice(0, options.limit);
   return list;
 }
+
+/** Clear the entire audit log. For admin use only. Does not add an entry (to avoid recursion). */
+export function clearAuditLog(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+  } catch {}
+}

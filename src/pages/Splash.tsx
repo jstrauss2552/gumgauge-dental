@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import Logo from "../components/Logo";
+import { ADMIN_SESSION_KEY } from "../constants/admin";
 
 export default function Splash() {
   const navigate = useNavigate();
@@ -9,6 +10,13 @@ export default function Splash() {
   const handleStart = () => {
     setStarting(true);
     setTimeout(() => navigate("/dashboard", { replace: true }), 400);
+  };
+
+  const handleDemo = () => {
+    try {
+      sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+    } catch {}
+    navigate("/dashboard", { replace: true });
   };
 
   return (
@@ -31,7 +39,7 @@ export default function Splash() {
           <span className="splash-tagline-fill">GumGauge — The Future of Dental Care</span>
         </h1>
       </div>
-      <div className="mt-12 flex flex-col sm:flex-row items-center gap-4">
+      <div className="mt-12 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4">
         <button
           type="button"
           onClick={handleStart}
@@ -39,6 +47,13 @@ export default function Splash() {
           className="px-10 py-4 bg-white text-navy font-semibold text-lg rounded-xl border-2 border-black shadow-lg shadow-black/20 hover:bg-sky-light hover:shadow-xl hover:shadow-black/25 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-navy active:scale-[0.98] transition-all duration-200 disabled:opacity-80 disabled:hover:translate-y-0"
         >
           Start System
+        </button>
+        <button
+          type="button"
+          onClick={handleDemo}
+          className="px-10 py-4 bg-amber-400 text-navy font-semibold text-lg rounded-xl border-2 border-amber-500 shadow-lg hover:bg-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:ring-offset-2 focus:ring-offset-navy active:scale-[0.98] transition-all duration-200"
+        >
+          Demo
         </button>
         <Link
           to="/signin"

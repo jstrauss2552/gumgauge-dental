@@ -29,6 +29,13 @@ export function getClinic(): Clinic | null {
   return getStored();
 }
 
+/** Remove the assigned clinic from this device. Admin can reassign from Clinic Log. */
+export function unassignClinic(): void {
+  try {
+    localStorage.removeItem(CLINIC_STORAGE_KEY);
+  } catch {}
+}
+
 export function saveClinic(clinic: Partial<Clinic> & { name: string }): Clinic {
   const existing = getStored();
   const now = new Date().toISOString();

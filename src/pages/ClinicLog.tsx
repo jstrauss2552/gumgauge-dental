@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
-import { getClinic, saveClinic } from "../storage/clinicStorage";
+import { getClinic, saveClinic, unassignClinic } from "../storage/clinicStorage";
 import { getPendingClinicRegistrations, removePendingClinicRegistration, type PendingClinicRegistration } from "../storage/pendingClinicStorage";
-import { getPatients } from "../storage";
+import { getPatients, clearAllPatientVisitHistory } from "../storage";
+import { getAuditEntries, clearAuditLog } from "../storage/auditStorage";
 import { ADMIN_SESSION_KEY } from "../constants/admin";
 import { formatDisplayDate } from "../utils/dateFormat";
 
@@ -15,6 +16,8 @@ export default function ClinicLog() {
   const [clinic, setClinic] = useState<ReturnType<typeof getClinic>>(null);
   const [pending, setPending] = useState<PendingClinicRegistration[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [confirmClearAudit, setConfirmClearAudit] = useState(false);
+  const [confirmClearVisits, setConfirmClearVisits] = useState(false);
 
   const refresh = () => {
     setClinic(getClinic());
@@ -57,6 +60,20 @@ export default function ClinicLog() {
     removePendingClinicRegistration(p.id);
     refresh();
   };
+
+  const handleClearAuditLog = () => {
+    clearAuditLog();
+    setConfirmClearAudit(false);
+    refresh();
+  };
+
+  const handleClearAllVisitHistory = () => {
+    clearAllPatientVisitHistory();
+    setConfirmClearVisits(false);
+    refresh();
+  };
+
+  const auditEntryCount = getAuditEntries().length;
 
   const patients = getPatients();
   const patientCount = patients.length;
@@ -122,6 +139,45 @@ export default function ClinicLog() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-6">
+          <h2 className="text-lg font-semibold text-navy mb-2">Admin actions</h2>
+          <p className="text-sm text-navy/60 mb-4">Clear audit log or all patient visit history. These actions cannot be undone.</p>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              {!confirmClearAudit ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearAudit(true)}
+                  className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
+                >
+                  Clear audit log ({auditEntryCount} entries)
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={handleClearAuditLog} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium">Confirm clear</button>
+                  <button type="button" onClick={() => setConfirmClearAudit(false)} className="px-4 py-2 border border-navy/30 rounded-lg">Cancel</button>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {!confirmClearVisits ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearVisits(true)}
+                  className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
+                >
+                  Clear all patient visit history
+                </button>
+              ) : (
+                <>
+                  <button type="button" onClick={handleClearAllVisitHistory} className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium">Confirm clear</button>
+                  <button type="button" onClick={() => setConfirmClearVisits(false)} className="px-4 py-2 border border-navy/30 rounded-lg">Cancel</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-6">
           <h2 className="text-lg font-semibold text-navy mb-2">Pending registrations</h2>
           <p className="text-sm text-navy/60 mb-4">Clinics that submitted for approval. Approve to assign them to this device.</p>
           {pending.length === 0 ? (
@@ -157,15 +213,29 @@ export default function ClinicLog() {
             In production, admin would see all clinics across all installations.
           </p>
           {clinic ? (
-            <div className="flex justify-between items-start gap-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-4 py-3">
               <div>
                 <p className="font-medium text-navy">{clinic.name}</p>
                 {location && <p className="text-sm text-navy/70">{location}</p>}
                 {clinic.address && <p className="text-sm text-navy/70">{clinic.address}</p>}
               </div>
-              <div className="text-right">
-                <p className="text-sm text-navy/70">Devices</p>
-                <p className="text-xl font-semibold text-navy">{clinic.deviceCount ?? 1}</p>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-sm text-navy/70">Devices</p>
+                  <p className="text-xl font-semibold text-navy">{clinic.deviceCount ?? 1}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Unassign this clinic from this device? The clinic can be reassigned later from pending registrations.")) {
+                      unassignClinic();
+                      refresh();
+                    }
+                  }}
+                  className="px-4 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50"
+                >
+                  Unassign clinic
+                </button>
               </div>
             </div>
           ) : (

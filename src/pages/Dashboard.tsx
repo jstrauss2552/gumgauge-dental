@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { getPatients, updatePatient } from "../storage";
+import { getPatients } from "../storage";
 import { getClinic } from "../storage/clinicStorage";
 import { formatDisplayDate, formatISODateTimeInTimezone } from "../utils/dateFormat";
 import { useTimezoneContext } from "../contexts/TimezoneContext";
@@ -15,6 +15,7 @@ export default function Dashboard() {
   useEffect(() => {
     setPatients(getPatients());
   }, []);
+
   const inProgressPatients = patients
     .filter((p) => p.currentVisitStartedAt)
     .sort((a, b) => (b.currentVisitStartedAt ?? "").localeCompare(a.currentVisitStartedAt ?? ""));
@@ -39,29 +40,17 @@ export default function Dashboard() {
         )}
       </div>
       <p className="text-navy/70 mb-1">{full}</p>
-      <p className="text-navy/50 text-sm mb-6">Live · based on selected time zone</p>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-6">
-          <p className="text-sm text-navy/70">Total Patients</p>
-          <p className="text-3xl font-semibold text-navy mt-1">{patients.length}</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-green-200 p-6">
-          <p className="text-sm text-green-800/80">Visits in progress</p>
-          <p className="text-3xl font-semibold text-green-800 mt-1">{inProgressPatients.length}</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-6">
-          <p className="text-sm text-navy/70">Today&apos;s Appointments</p>
-          <p className="text-3xl font-semibold text-navy mt-1">{todayAppointments.length}</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-6">
-          <p className="text-sm text-navy/70">Quick action</p>
-          <Link
-            to="/dashboard/patients/new"
-            className="inline-block mt-2 text-sky-dark font-medium hover:underline"
-          >
-            + Add patient
-          </Link>
-        </div>
+      <p className="text-navy/50 text-sm mb-4">Live · based on selected time zone</p>
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <Link to="/dashboard/patients/new" className="px-4 py-2 bg-navy text-white rounded-lg font-medium hover:bg-navy-light inline-block">
+          + Add patient
+        </Link>
+        <Link to="/dashboard/analytics" className="px-4 py-2 border border-sky/60 rounded-lg font-medium text-navy hover:bg-sky/10 inline-block">
+          Analytics
+        </Link>
+        <span className="text-navy/60 text-sm">
+          {inProgressPatients.length} in progress · {todayAppointments.length} today
+        </span>
       </div>
 
       <div className="bg-green-50 rounded-xl shadow-sm border-2 border-green-200 p-6 mb-6">

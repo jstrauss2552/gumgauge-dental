@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { Prescription } from "../types";
 import { formatDisplayDate } from "../utils/dateFormat";
+import { MEDICATION_STRENGTHS, PRESCRIBER_CREDENTIALS } from "../constants/autocompleteSuggestions";
 
 /** Common dental medications for quick select (user can type custom). */
 const COMMON_DENTAL_MEDICATIONS = [
@@ -169,8 +170,15 @@ export default function PrescriptionView({
                 value={strength}
                 onChange={(e) => setStrength(e.target.value)}
                 placeholder="e.g. 500mg capsule"
+                list="rx-strength-list"
+                autoComplete="off"
                 className="w-full px-3 py-2 border border-sky/60 rounded-lg"
               />
+              <datalist id="rx-strength-list">
+                {MEDICATION_STRENGTHS.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm text-navy/70 mb-1">Sig (directions for use) *</label>
@@ -221,8 +229,15 @@ export default function PrescriptionView({
                 value={prescriberCredentials}
                 onChange={(e) => setPrescriberCredentials(e.target.value)}
                 placeholder="e.g. DDS"
+                list="rx-credentials-list"
+                autoComplete="off"
                 className="w-full px-3 py-2 border border-sky/60 rounded-lg"
               />
+              <datalist id="rx-credentials-list">
+                {PRESCRIBER_CREDENTIALS.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className="block text-sm text-navy/70 mb-1">DEA number (if controlled)</label>

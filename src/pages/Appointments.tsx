@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getPatients, updatePatient } from "../storage";
 import { formatDisplayDate } from "../utils/dateFormat";
 import type { Patient } from "../types";
+import type { AppointmentStatus } from "../types";
 import { useTimezoneContext } from "../contexts/TimezoneContext";
 import { useTodayInTimezone } from "../hooks/useAppTimezone";
 import { buildEventsFromPatients } from "../utils/appointmentEvents";
@@ -328,6 +329,7 @@ export default function Appointments() {
                 <th className="text-left py-3 px-4 text-sm font-medium text-navy">Date</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-navy">Type</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-navy">Patient</th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-navy">Status</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-navy">Duration</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-navy">Room</th>
                 <th className="w-24" />
@@ -342,6 +344,28 @@ export default function Appointments() {
                   </td>
                   <td className="py-3 px-4 font-medium text-navy">
                     {patient.firstName} {patient.lastName}
+                  </td>
+                  <td className="py-3 px-4">
+                    {type === "appointment" ? (
+                      <select
+                        value={patient.appointmentStatus ?? "Scheduled"}
+                        onChange={(e) => {
+                          updatePatient(patient.id, { appointmentStatus: e.target.value as AppointmentStatus });
+                          refreshPatients();
+                        }}
+                        className="text-sm px-2 py-1 border border-sky/60 rounded bg-white text-navy"
+                      >
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Checked In">Checked In</option>
+                        <option value="In Chair">In Chair</option>
+                        <option value="With Doctor">With Doctor</option>
+                        <option value="Checkout">Checkout</option>
+                        <option value="No-Show">No-Show</option>
+                        <option value="Broken">Broken</option>
+                      </select>
+                    ) : (
+                      <span className="text-navy/60">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-navy/80">
                     {type === "appointment" ? (patient.appointmentDurationMinutes ? `${patient.appointmentDurationMinutes} min` : "—") : (patient.nextAppointmentDurationMinutes ? `${patient.nextAppointmentDurationMinutes} min` : "—")}

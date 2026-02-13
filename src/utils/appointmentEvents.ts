@@ -20,6 +20,7 @@ export function buildEventsFromPatients(patients: Patient[]): AppointmentEvent[]
         provider: p.appointmentDoctor,
         room: p.appointmentRoom,
         patientName: name,
+        status: p.appointmentStatus,
       });
     }
     if (p.dateOfNextAppointment) {

@@ -9,9 +9,11 @@ import { US_TIMEZONES } from "../constants/timezones";
 import { STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS } from "../constants/staffPositions";
 import { ADMIN_SESSION_KEY } from "../constants/admin";
 import type { TimezoneId } from "../constants/timezones";
+import GlobalSearch from "./GlobalSearch";
 
 const baseNavItems = [
   { to: "/dashboard", label: "Dashboard" },
+  { to: "/dashboard/analytics", label: "Analytics" },
   { to: "/dashboard/patients", label: "Patients" },
   { to: "/dashboard/billing", label: "Billing" },
   { to: "/dashboard/staff", label: "Staff" },
@@ -40,6 +42,7 @@ export default function Layout() {
             </p>
           )}
         </div>
+        <GlobalSearch />
         <nav className="flex-1 p-3 space-y-1">
           {(() => {
             const isAdmin = typeof sessionStorage !== "undefined" && sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";

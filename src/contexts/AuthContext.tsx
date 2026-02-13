@@ -5,6 +5,7 @@ import { ADMIN_SESSION_KEY } from "../constants/admin";
 import type { Staff } from "../types";
 
 const AUTH_STORAGE_KEY = "gumgauge-signed-in-staff-id";
+const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 function getIsAdmin(): boolean {
   try {
@@ -47,6 +48,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem(AUTH_STORAGE_KEY);
       setStaffId(null);
     }
+  }, [staffId]);
+
+  useEffect(() => {
+    if (!staffId) return;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const resetTimeout = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setStaffId(null);
+        setStaff(null);
+        setAuditActor(undefined);
+        try { sessionStorage.removeItem(AUTH_STORAGE_KEY); } catch {}
+      }, SESSION_TIMEOUT_MS);
+    };
+    resetTimeout();
+    const events = ["mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, resetTimeout));
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach((e) => window.removeEventListener(e, resetTimeout));
+    };
   }, [staffId]);
 
   const login = (loginEmail: string, password: string): boolean => {

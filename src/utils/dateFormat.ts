@@ -8,12 +8,11 @@ const MONTHS = [
 
 export function formatDisplayDate(isoDate: string): string {
   if (!isoDate) return "";
-  const [y, m, d] = isoDate.split("-").map(Number);
-  if (!m || m < 1 || m > 12) return isoDate;
+  const datePart = isoDate.slice(0, 10);
+  const [y, m, d] = datePart.split("-").map(Number);
+  if (!m || m < 1 || m > 12 || !d || d < 1 || d > 31) return isoDate;
   const month = MONTHS[m - 1];
-  const day = d;
-  const year = y;
-  return `${month} ${day}, ${year}`;
+  return `${month} ${d}, ${y}`;
 }
 
 /**

@@ -3,6 +3,14 @@ import { useNavigate, Link } from "react-router-dom";
 import { addPatient } from "../storage";
 import { APPOINTMENT_TYPES } from "../types";
 import { TOP_INSURANCE_PROVIDERS, INSURANCE_OTHER } from "../constants/insuranceProviders";
+import {
+  COMMON_ALLERGIES,
+  COMMON_MEDICAL_CONDITIONS,
+  COMMON_CURRENT_MEDICATIONS,
+  INSURANCE_PLANS,
+  APPOINTMENT_TYPE_OTHER,
+  CHIEF_COMPLAINTS,
+} from "../constants/autocompleteSuggestions";
 
 const empty = {
   firstName: "",
@@ -106,9 +114,9 @@ export default function PatientNew() {
           <>
             <p className="text-xs text-navy/60 mb-2">Allergies, conditions, and medications relevant to dental treatment</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="block text-sm text-navy/70 mb-1">Allergies</label><input value={form.allergies} onChange={(e) => update("allergies", e.target.value)} placeholder="e.g. Penicillin, latex" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
-              <div><label className="block text-sm text-navy/70 mb-1">Medical conditions</label><input value={form.medicalConditions} onChange={(e) => update("medicalConditions", e.target.value)} placeholder="e.g. Diabetes, hypertension" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
-              <div><label className="block text-sm text-navy/70 mb-1">Current medications</label><input value={form.currentMedications} onChange={(e) => update("currentMedications", e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
+              <div><label className="block text-sm text-navy/70 mb-1">Allergies</label><input value={form.allergies} onChange={(e) => update("allergies", e.target.value)} placeholder="e.g. Penicillin, latex" list="new-patient-allergies-list" autoComplete="off" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /><datalist id="new-patient-allergies-list">{COMMON_ALLERGIES.map((a) => <option key={a} value={a} />)}</datalist></div>
+              <div><label className="block text-sm text-navy/70 mb-1">Medical conditions</label><input value={form.medicalConditions} onChange={(e) => update("medicalConditions", e.target.value)} placeholder="e.g. Diabetes, hypertension" list="new-patient-medical-list" autoComplete="off" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /><datalist id="new-patient-medical-list">{COMMON_MEDICAL_CONDITIONS.map((m) => <option key={m} value={m} />)}</datalist></div>
+              <div><label className="block text-sm text-navy/70 mb-1">Current medications</label><input value={form.currentMedications} onChange={(e) => update("currentMedications", e.target.value)} list="new-patient-medications-list" autoComplete="off" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /><datalist id="new-patient-medications-list">{COMMON_CURRENT_MEDICATIONS.map((m) => <option key={m} value={m} />)}</datalist></div>
               <div><label className="block text-sm text-navy/70 mb-1">Emergency contact name</label><input value={form.emergencyContactName} onChange={(e) => update("emergencyContactName", e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
               <div className="md:col-span-2"><label className="block text-sm text-navy/70 mb-1">Emergency contact phone</label><input value={form.emergencyContactPhone} onChange={(e) => update("emergencyContactPhone", e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
             </div>
@@ -132,15 +140,21 @@ export default function PatientNew() {
                   <input
                     type="text"
                     autoComplete="off"
+                    list="new-patient-insurance-custom-list"
                     value={form.insuranceOther}
                     onChange={(e) => update("insuranceOther", e.target.value)}
                     placeholder="Type insurance provider name"
                     className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy"
                   />
+                  <datalist id="new-patient-insurance-custom-list">
+                    {TOP_INSURANCE_PROVIDERS.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                 </div>
               )}
             </div>
-            <div><label className="block text-sm text-navy/70 mb-1">Plan name</label><input value={form.insurancePlan} onChange={(e) => update("insurancePlan", e.target.value)} placeholder="Select plan" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
+            <div><label className="block text-sm text-navy/70 mb-1">Plan name</label><input value={form.insurancePlan} onChange={(e) => update("insurancePlan", e.target.value)} placeholder="Select plan" list="new-patient-plan-list" autoComplete="off" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /><datalist id="new-patient-plan-list">{INSURANCE_PLANS.map((p) => <option key={p} value={p} />)}</datalist></div>
             <div><label className="block text-sm text-navy/70 mb-1">Member ID</label><input value={form.insuranceMemberId} onChange={(e) => update("insuranceMemberId", e.target.value)} placeholder="Member ID" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
             <div><label className="block text-sm text-navy/70 mb-1">Group number</label><input value={form.insuranceGroupNumber} onChange={(e) => update("insuranceGroupNumber", e.target.value)} placeholder="Group number" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
           </div>
@@ -166,8 +180,15 @@ export default function PatientNew() {
                     value={form.appointmentTypeOther}
                     onChange={(e) => update("appointmentTypeOther", e.target.value)}
                     placeholder="e.g. Implant consultation, TMJ follow-up"
+                    list="new-patient-appointment-type-other-list"
+                    autoComplete="off"
                     className="w-full px-3 py-2 border border-sky/60 rounded-lg"
                   />
+                  <datalist id="new-patient-appointment-type-other-list">
+                    {APPOINTMENT_TYPE_OTHER.map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                  </datalist>
                 </div>
               )}
             </div>
@@ -177,7 +198,7 @@ export default function PatientNew() {
 
         {section("Clinical", (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div><label className="block text-sm text-navy/70 mb-1">Chief complaint</label><input value={form.chiefComplaint} onChange={(e) => update("chiefComplaint", e.target.value)} placeholder="Reason for visit" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
+            <div><label className="block text-sm text-navy/70 mb-1">Chief complaint</label><input value={form.chiefComplaint} onChange={(e) => update("chiefComplaint", e.target.value)} placeholder="Reason for visit" list="new-patient-chief-complaint-list" autoComplete="off" className="w-full px-3 py-2 border border-sky/60 rounded-lg" /><datalist id="new-patient-chief-complaint-list">{CHIEF_COMPLAINTS.map((c) => <option key={c} value={c} />)}</datalist></div>
             <div><label className="block text-sm text-navy/70 mb-1">Last cleaning date</label><input type="date" value={form.lastCleaningDate} onChange={(e) => update("lastCleaningDate", e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg" /></div>
             <div className="md:col-span-2"><label className="block text-sm text-navy/70 mb-1">Treatment plan</label><textarea value={form.treatmentPlan} onChange={(e) => update("treatmentPlan", e.target.value)} rows={3} placeholder="Planned treatment" className="w-full px-3 py-2 border border-sky/60 rounded-lg resize-y" /></div>
           </div>

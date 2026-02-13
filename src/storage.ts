@@ -56,3 +56,18 @@ export function deletePatient(id: string): boolean {
   addAuditEntry({ timestamp: new Date().toISOString(), action: "patient.delete", entityType: "patient", entityId: id, details: found ? `${found.firstName} ${found.lastName}` : undefined });
   return true;
 }
+
+/** Clear visit history (and current visit) for all patients. For admin use only. */
+export function clearAllPatientVisitHistory(): void {
+  const patients = getPatients();
+  const now = new Date().toISOString();
+  const updated = patients.map((p) => ({
+    ...p,
+    visitHistory: [],
+    currentVisitStartedAt: undefined,
+    currentVisitNotes: undefined,
+    currentVisitUseVoiceNotes: undefined,
+    updatedAt: now,
+  }));
+  savePatients(updated);
+}

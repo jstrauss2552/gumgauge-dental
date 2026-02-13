@@ -75,8 +75,50 @@ export interface Patient {
   nextAppointmentDurationMinutes?: number;
   /** Room for next appointment. */
   nextAppointmentRoom?: string;
+  /** Current appointment flow status (for today's appointment). */
+  appointmentStatus?: AppointmentStatus;
+  /** Restorative chart: conditions per tooth/surface (caries, existing, missing, planned). */
+  toothConditions?: ToothCondition[];
+  /** Consent forms, referrals, lab slips, other documents. */
+  documents?: PatientDocument[];
+  /** Last date a recall reminder was sent (ISO date). */
+  lastRecallReminderSent?: string;
+  /** Last date an appointment reminder was sent (ISO date). */
+  lastAppointmentReminderSent?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Appointment flow status for front desk / clinical. */
+export type AppointmentStatus = "Scheduled" | "Checked In" | "In Chair" | "With Doctor" | "Checkout" | "No-Show" | "Broken";
+
+/** Tooth condition for restorative charting (per tooth or per surface). */
+export interface ToothCondition {
+  id: string;
+  tooth: number; // 1-32
+  /** Surface: M, O, D, F, I, B, L, etc. Optional = whole tooth. */
+  surface?: string;
+  condition: ToothConditionType;
+  /** Planned vs completed. */
+  status: "Planned" | "Completed";
+  /** When completed (ISO date). */
+  completedAt?: string;
+  note?: string;
+  addedAt: string;
+}
+
+export type ToothConditionType = "Sound" | "Caries" | "Existing Restoration" | "Missing" | "Planned" | "Implant" | "Crown" | "Root Canal" | "Extraction" | "Other";
+
+/** Patient document (consent, referral, lab, etc.). */
+export interface PatientDocument {
+  id: string;
+  type: "Consent" | "Referral" | "Lab" | "Insurance" | "Other";
+  title: string;
+  date: string; // ISO date
+  note?: string;
+  /** Optional file/data URL for scanned doc. */
+  dataUrl?: string;
+  addedAt: string;
 }
 
 export interface VisitHistoryEntry {
@@ -248,8 +290,14 @@ export interface FormalTreatmentPlan {
   id: string;
   createdAt: string; // ISO
   phases: TreatmentPlanPhase[];
-  status?: "Draft" | "Accepted" | "In progress" | "Completed";
+  status?: "Draft" | "Accepted" | "In progress" | "Completed" | "Declined";
   notes?: string;
+  /** When patient accepted (for case acceptance reporting). */
+  acceptedAt?: string;
+  /** When patient declined. */
+  declinedAt?: string;
+  /** Staff who presented (optional). */
+  presentedBy?: string;
 }
 
 export interface PaymentHistoryEntry {
@@ -305,7 +353,7 @@ export interface InsuranceClaim {
   procedureCodes: string[]; // CDT codes
   description: string;
   amount: number;
-  status: "Draft" | "Sent" | "Paid" | "Denied";
+  status: "Draft" | "Sent" | "Paid" | "Partially paid" | "Denied";
   note?: string;
 }
 

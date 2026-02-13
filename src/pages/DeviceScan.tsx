@@ -37,6 +37,7 @@ export default function DeviceScan() {
   const [flashStep, setFlashStep] = useState(0);
   const [brightnessPercent, setBrightnessPercent] = useState(50);
   const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
@@ -128,7 +129,12 @@ export default function DeviceScan() {
     const file = e.target.files?.[0];
     e.target.value = "";
     setUploadError("");
-    if (!file || !selectedPatient) return;
+    setUploadSuccess("");
+    if (!file) return;
+    if (!selectedPatient) {
+      setUploadError("Select a patient first, then upload the scan file.");
+      return;
+    }
     if (currentImages.length >= 10) {
       setUploadError("This patient already has the maximum of 10 images. Remove one from their chart first.");
       return;
@@ -147,10 +153,14 @@ export default function DeviceScan() {
         dataUrl,
         dateAdded: new Date().toISOString(),
       };
-      const nextImages = [...currentImages, newImage];
+      const nextImages = [...(selectedPatient.patientImages ?? []), newImage];
       updatePatient(selectedPatient.id, { patientImages: nextImages });
       setScanComplete(false);
+      setUploadSuccess(`Scan file added to ${selectedPatient.firstName} ${selectedPatient.lastName}'s chart. It will appear in their Images section.`);
+      setRefreshKey((k) => k + 1);
+      setTimeout(() => setUploadSuccess(""), 5000);
     };
+    reader.onerror = () => setUploadError("Could not read the file.");
     reader.readAsDataURL(file);
   };
 
@@ -307,6 +317,9 @@ export default function DeviceScan() {
           </button>
           {!canAddImage && selectedPatientId && (
             <p className="text-amber-700 text-sm mt-1">This patient has reached the maximum of 10 images. Remove one from their chart first.</p>
+          )}
+          {uploadSuccess && (
+            <p className="text-green-700 text-sm mt-2 font-medium" role="status">{uploadSuccess}</p>
           )}
           {uploadError && (
             <p className="text-red-600 text-sm mt-2" role="alert">{uploadError}</p>

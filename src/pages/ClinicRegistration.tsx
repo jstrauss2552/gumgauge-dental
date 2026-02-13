@@ -3,6 +3,45 @@ import { Link } from "react-router-dom";
 import { getClinic } from "../storage/clinicStorage";
 import { addPendingClinicRegistration } from "../storage/pendingClinicStorage";
 
+const US_STATES = [
+  "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
+  "Delaware", "Florida", "Georgia", "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa",
+  "Kansas", "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", "Michigan",
+  "Minnesota", "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire",
+  "New Jersey", "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+  "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
+  "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington", "West Virginia",
+  "Wisconsin", "Wyoming",
+];
+
+const COMMON_CITIES = [
+  "Austin", "Houston", "Dallas", "San Antonio", "Fort Worth", "El Paso", "Arlington",
+  "New York", "Los Angeles", "Chicago", "Phoenix", "Philadelphia", "San Diego",
+  "San Jose", "Jacksonville", "Columbus", "Charlotte", "Indianapolis", "Seattle",
+  "Denver", "Boston", "Nashville", "Detroit", "Portland", "Las Vegas", "Memphis",
+  "Louisville", "Baltimore", "Milwaukee", "Albuquerque", "Tucson", "Fresno",
+  "Sacramento", "Kansas City", "Mesa", "Atlanta", "Omaha", "Miami", "Oakland",
+  "Minneapolis", "Cleveland", "Wichita", "Arlington", "Tampa", "Honolulu",
+  "Aurora", "Anaheim", "Santa Ana", "St. Louis", "Riverside", "Corpus Christi",
+  "Pittsburgh", "Lexington", "Anchorage", "Stockton", "Cincinnati", "St. Paul",
+  "Toledo", "Newark", "Plano", "Henderson", "Lincoln", "Buffalo", "Fort Wayne",
+  "Jersey City", "St. Petersburg", "Chula Vista", "Orlando", "Laredo", "Chandler",
+  "Madison", "Lubbock", "Scottsdale", "Reno", "Durham", "Winston-Salem",
+  "Gilbert", "Glendale", "North Las Vegas", "Irving", "Fremont", "Boise",
+  "Richmond", "San Bernardino", "Birmingham", "Spokane", "Rochester", "Des Moines",
+  "Modesto", "Fayetteville", "Tacoma", "Oxnard", "Fontana", "Columbus", "Montgomery",
+  "Moreno Valley", "Salt Lake City", "Little Rock", "Augusta", "Grand Rapids",
+  "Tallahassee", "Huntsville", "Grand Prairie", "Knoxville", "Worcester", "Newport News",
+  "Brownsville", "Santa Clarita", "Overland Park", "Providence", "Garden Grove",
+  "Santa Rosa", "Chattanooga", "Oceanside", "Fort Lauderdale", "Rancho Cucamonga",
+  "Santa Clara", "Port St. Lucie", "Vancouver", "Tempe", "Springfield", "Cape Coral",
+  "Pembroke Pines", "Sioux Falls", "Peoria", "Lancaster", "Elk Grove", "Palmdale",
+  "Salinas", "Springfield", "Pomona", "Pasadena", "Joliet", "Paterson", "Kansas City",
+  "Torrance", "Syracuse", "Bridgeport", "Hayward", "Fort Collins", "Corona",
+  "Rockford", "Savannah", "Mesquite", "Sunnyvale", "Pasadena", "Orange", "Naples",
+  "Aurora", "Dayton", "Hampton", "Hollywood", "Killeen", "McKinney", "Lakewood",
+];
+
 export default function ClinicRegistration() {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
@@ -14,6 +53,16 @@ export default function ClinicRegistration() {
   const [submitted, setSubmitted] = useState(false);
 
   const assignedClinic = getClinic();
+
+  const resetForm = () => {
+    setName("");
+    setAddress("");
+    setCity("");
+    setState("");
+    setZip("");
+    setPhone("");
+    setDeviceCount("1");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +77,7 @@ export default function ClinicRegistration() {
       deviceCount: Number.isNaN(num) || num < 1 ? 1 : num,
     });
     setSubmitted(true);
+    resetForm();
   };
 
   return (
@@ -69,11 +119,37 @@ export default function ClinicRegistration() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-navy mb-1">City</label>
-            <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="City" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="City"
+              className="w-full px-3 py-2 border border-sky/60 rounded-lg"
+              list="city-list"
+              autoComplete="off"
+            />
+            <datalist id="city-list">
+              {COMMON_CITIES.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label className="block text-sm font-medium text-navy mb-1">State</label>
-            <input type="text" value={state} onChange={(e) => setState(e.target.value)} placeholder="State" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+            <input
+              type="text"
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              placeholder="State"
+              className="w-full px-3 py-2 border border-sky/60 rounded-lg"
+              list="state-list"
+              autoComplete="off"
+            />
+            <datalist id="state-list">
+              {US_STATES.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
           </div>
         </div>
         <div>
