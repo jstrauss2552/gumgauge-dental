@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import type { GumGaugeExam, GumGaugeToothReading } from "../types";
 import { formatDisplayDate } from "../utils/dateFormat";
+import Mouth3DViewer from "./Mouth3DViewer";
 
 /** Tooth layout: upper arch 1-16 (top), lower arch 17-32 (bottom). Universal numbering. */
 const UPPER_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -70,11 +71,23 @@ export default function GumGaugeMouthView({
       )}
 
       <p className="text-xs text-navy/60">
-        Click a tooth to see its light penetration % and health. Colors: green = Healthy, amber = Moderate, red = Unhealthy.
+        Click a tooth in either view to select it; the same tooth is highlighted in both. Colors: green = Healthy, amber = Moderate, red = Unhealthy.
       </p>
 
-      <div className="flex flex-col items-center">
-        <svg
+      <div>
+        <h3 className="text-sm font-semibold text-navy mb-2">3D view</h3>
+        <Mouth3DViewer
+          readings={exam?.teeth ?? []}
+          selectedTooth={selectedTooth}
+          onSelectTooth={onSelectTooth}
+          height={320}
+        />
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-navy mb-2">2D map</h3>
+        <div className="flex flex-col items-center rounded-xl border border-sky/40 bg-white/80 p-3">
+          <svg
           viewBox="0 0 320 140"
           className="w-full max-w-md h-auto"
           style={{ maxHeight: "220px" }}
@@ -142,6 +155,7 @@ export default function GumGaugeMouthView({
             })}
           </g>
         </svg>
+        </div>
       </div>
 
       {reading != null && selectedTooth != null && (

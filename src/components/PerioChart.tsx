@@ -3,7 +3,6 @@ import type { PerioExam, PerioToothReadings, GumGaugeExam } from "../types";
 import { PERIO_SITES } from "../types";
 import { formatDisplayDate } from "../utils/dateFormat";
 import GumGaugeMouthView from "./GumGaugeMouthView";
-import Mouth3DView from "./Mouth3DView";
 
 const TOOTH_NUMBERS = [32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // upper then lower
 
@@ -386,13 +385,7 @@ export default function PerioChart({ exams, gumGaugeExams = [], onSaveExam, onDe
               </table>
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-green-200 space-y-4">
-            <p className="text-xs font-medium text-navy mb-2">3D mouth — drag to rotate, scroll to zoom; teeth colored by scan health</p>
-            <Mouth3DView
-              readings={latestGumGauge.teeth}
-              selectedTooth={selectedTooth}
-              onSelectTooth={setSelectedTooth}
-            />
+          <div className="mt-4 pt-4 border-t border-green-200">
             <p className="text-xs font-medium text-navy mb-2">Interactive view — click a tooth to see details</p>
             <GumGaugeMouthView
               exams={gumGaugeExams}
