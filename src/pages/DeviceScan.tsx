@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import type { PatientImage, GumGaugeExam, GumGaugeToothReading } from "../types";
 import { densityToHealthResult, densityToLightPercent } from "../types";
 import GumGaugeMouthView from "../components/GumGaugeMouthView";
+import Mouth3DView from "../components/Mouth3DView";
 
 const MAX_FILE_SIZE_MB = 3;
 /** Scan runs 6–10 seconds: 8 steps × 1s = 8 seconds. Light flashes lower (dimmer) during scan. */
@@ -331,6 +332,16 @@ export default function DeviceScan() {
         {selectedPatient && gumGaugeExams.length > 0 && (
           <section className="rounded-xl border border-sky/40 bg-green-50/50 p-4">
             <h2 className="text-sm font-semibold text-navy uppercase tracking-wide mb-3">View scan results</h2>
+            <p className="text-xs text-navy/60 mb-3">
+              Interactive 3D mouth: drag to rotate, scroll to zoom. Teeth colored by scan health (green / amber / red). Click a tooth to see details below.
+            </p>
+            <div className="mb-4">
+              <Mouth3DView
+                readings={(gumGaugeExams.find((e) => e.id === (selectedExamId ?? gumGaugeExams[gumGaugeExams.length - 1]?.id)) ?? gumGaugeExams[gumGaugeExams.length - 1])?.teeth ?? []}
+                selectedTooth={selectedTooth}
+                onSelectTooth={setSelectedTooth}
+              />
+            </div>
             <p className="text-xs text-navy/60 mb-3">
               Select a scan date and click a tooth to see light penetration % and health. Compare past scans with the dropdown.
             </p>
