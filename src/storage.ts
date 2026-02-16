@@ -1,11 +1,40 @@
 import type { Patient } from "./types";
 import { addAuditEntry } from "./storage/auditStorage";
+import { DEMO_MODE_KEY } from "./constants/admin";
+import { getDemoPatients } from "./data/demoSeed";
 
 const STORAGE_KEY = "gumgauge-patients";
+const DEMO_STORAGE_KEY = "gumgauge-demo-patients";
+
+function isDemoMode(): boolean {
+  try {
+    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getPatientStorageKey(): string {
+  return isDemoMode() ? DEMO_STORAGE_KEY : STORAGE_KEY;
+}
+
+function ensureDemoSeed(): void {
+  if (!isDemoMode()) return;
+  try {
+    const raw = localStorage.getItem(DEMO_STORAGE_KEY);
+    if (raw) return; // already seeded
+    const patients = getDemoPatients();
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(patients));
+  } catch {
+    // ignore
+  }
+}
 
 export function getPatients(): Patient[] {
+  const key = getPatientStorageKey();
+  if (key === DEMO_STORAGE_KEY) ensureDemoSeed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -14,7 +43,8 @@ export function getPatients(): Patient[] {
 }
 
 export function savePatients(patients: Patient[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(patients));
+  const key = getPatientStorageKey();
+  localStorage.setItem(key, JSON.stringify(patients));
 }
 
 export function getPatientById(id: string): Patient | undefined {

@@ -35,7 +35,7 @@ export default function SignIn() {
         </div>
         <h1 className="text-xl font-semibold text-white text-center mb-2">Sign in</h1>
         <p className="text-sky-light/90 text-sm text-center mb-6">
-          For employed staff. Enter your assigned login credentials.
+          Enter your clinic credentials to log in as your profile and treat patients.
         </p>
         <form onSubmit={handleSubmit} className="bg-white/10 rounded-xl border border-white/20 p-6 space-y-4" autoComplete="off">
           <div>

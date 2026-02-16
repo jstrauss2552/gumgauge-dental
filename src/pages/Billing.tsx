@@ -22,7 +22,6 @@ export default function Billing() {
   const [addPaymentMethodModal, setAddPaymentMethodModal] = useState(false);
   const [newMethodType, setNewMethodType] = useState<PaymentMethod["type"]>("Card");
   const [newMethodCardNumber, setNewMethodCardNumber] = useState("");
-  const [newMethodNameOnCard, setNewMethodNameOnCard] = useState("");
   const [newMethodExpiryMonth, setNewMethodExpiryMonth] = useState("");
   const [newMethodExpiryYear, setNewMethodExpiryYear] = useState("");
   const [sendClaimModal, setSendClaimModal] = useState(false);
@@ -96,7 +95,6 @@ export default function Billing() {
     const mm = newMethodExpiryMonth.trim() ? parseInt(newMethodExpiryMonth, 10) : undefined;
     const yy = newMethodExpiryYear.trim() ? parseInt(newMethodExpiryYear, 10) : undefined;
     const patientName = `${selectedPatient.firstName} ${selectedPatient.lastName}`.trim();
-    const nameOnCard = newMethodNameOnCard.trim() || patientName;
     let lastFour: string | undefined;
     let cardBrand: string | undefined;
     if (newMethodType === "Card" && newMethodCardNumber.replace(/\D/g, "").length >= 4) {
@@ -108,7 +106,7 @@ export default function Billing() {
       type: newMethodType,
       lastFour,
       cardBrand,
-      nameOnCard: nameOnCard || undefined,
+      nameOnCard: patientName || undefined,
       expiryMonth: mm != null && mm >= 1 && mm <= 12 ? mm : undefined,
       expiryYear: yy != null && yy >= 2020 && yy <= 2050 ? yy : undefined,
       addedAt: new Date().toISOString(),
@@ -118,7 +116,6 @@ export default function Billing() {
     setAddPaymentMethodModal(false);
     setNewMethodType("Card");
     setNewMethodCardNumber("");
-    setNewMethodNameOnCard("");
     setNewMethodExpiryMonth("");
     setNewMethodExpiryYear("");
   };
@@ -214,11 +211,6 @@ export default function Billing() {
   }, {});
   const sortedAppointmentDates = Object.keys(chargesByDate).sort();
 
-  React.useEffect(() => {
-    if (addPaymentMethodModal && selectedPatient) {
-      setNewMethodNameOnCard(`${selectedPatient.firstName} ${selectedPatient.lastName}`.trim());
-    }
-  }, [addPaymentMethodModal, selectedPatient?.id]);
 
   const allPatients = getPatients();
   const productionThisMonth = allPatients.reduce((s, p) => s + (p.paymentHistory ?? []).filter((pay) => pay.date.startsWith(new Date().toISOString().slice(0, 7))).reduce((sum, pay) => sum + pay.amount, 0), 0);
@@ -572,10 +564,10 @@ export default function Billing() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="add-method-title">
           <div className="bg-white rounded-xl shadow-xl border border-sky/40 p-6 max-w-md w-full">
             <h2 id="add-method-title" className="text-lg font-semibold text-navy mb-1">Add payment method</h2>
-            <p className="text-sm text-navy/70 mb-4">Card will be stored under {selectedPatient.firstName} {selectedPatient.lastName}. Brand is detected from the card number.</p>
+            <p className="text-sm text-navy/70 mb-4">Card will be saved for {selectedPatient.firstName} {selectedPatient.lastName}. Card type is detected from the number.</p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-navy mb-1">Type</label>
+                <label className="block text-sm font-medium text-navy mb-1">Payment type</label>
                 <select value={newMethodType} onChange={(e) => setNewMethodType(e.target.value as PaymentMethod["type"])} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
                   <option value="Card">Card</option>
                   <option value="Check">Check</option>
@@ -593,7 +585,7 @@ export default function Billing() {
                       autoComplete="cc-number"
                       value={newMethodCardNumber}
                       onChange={(e) => setNewMethodCardNumber(e.target.value.replace(/\D/g, "").slice(0, 19))}
-                      placeholder="4111 1111 1111 1111"
+                      placeholder="Enter full card number"
                       className="w-full px-3 py-2 border border-sky/60 rounded-lg font-mono"
                     />
                     {newMethodCardNumber.replace(/\D/g, "").length >= 4 && getCardBrand(newMethodCardNumber) && (
@@ -602,18 +594,18 @@ export default function Billing() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-medium text-navy mb-1">Expiry month</label>
+                      <label className="block text-sm font-medium text-navy mb-1">Expiration month</label>
                       <select value={newMethodExpiryMonth} onChange={(e) => setNewMethodExpiryMonth(e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
-                        <option value="">Month</option>
+                        <option value="">Select month</option>
                         {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
                           <option key={m} value={m}>{m}</option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-navy mb-1">Expiry year</label>
+                      <label className="block text-sm font-medium text-navy mb-1">Expiration year</label>
                       <select value={newMethodExpiryYear} onChange={(e) => setNewMethodExpiryYear(e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
-                        <option value="">Year</option>
+                        <option value="">Select year</option>
                         {Array.from({ length: 21 }, (_, i) => new Date().getFullYear() + i).map((y) => (
                           <option key={y} value={String(y)}>{y}</option>
                         ))}
@@ -622,13 +614,9 @@ export default function Billing() {
                   </div>
                 </>
               )}
-              <div>
-                <label className="block text-sm font-medium text-navy mb-1">Account holder (defaults to patient name)</label>
-                <input type="text" value={newMethodNameOnCard} onChange={(e) => setNewMethodNameOnCard(e.target.value)} placeholder={`${selectedPatient.firstName} ${selectedPatient.lastName}`} className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
-              </div>
             </div>
             <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-sky/30">
-              <button type="button" onClick={() => { setAddPaymentMethodModal(false); setNewMethodCardNumber(""); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium text-navy hover:bg-sky/10">Cancel</button>
+              <button type="button" onClick={() => { setAddPaymentMethodModal(false); setNewMethodCardNumber(""); setNewMethodExpiryMonth(""); setNewMethodExpiryYear(""); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium text-navy hover:bg-sky/10">Cancel</button>
               <button type="button" onClick={handleAddPaymentMethod} className="px-4 py-2 bg-navy text-white rounded-lg font-medium hover:bg-navy-light">Save payment method</button>
             </div>
           </div>

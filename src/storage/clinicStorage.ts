@@ -1,4 +1,32 @@
+import { DEMO_MODE_KEY } from "../constants/admin";
+import { getDemoClinic } from "../data/demoSeed";
+
 const CLINIC_STORAGE_KEY = "gumgauge-clinic";
+const DEMO_CLINIC_STORAGE_KEY = "gumgauge-demo-clinic";
+
+function isDemoMode(): boolean {
+  try {
+    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getClinicStorageKey(): string {
+  return isDemoMode() ? DEMO_CLINIC_STORAGE_KEY : CLINIC_STORAGE_KEY;
+}
+
+function ensureDemoClinicSeed(): void {
+  if (!isDemoMode()) return;
+  try {
+    const raw = localStorage.getItem(DEMO_CLINIC_STORAGE_KEY);
+    if (raw) return;
+    const clinic = getDemoClinic();
+    localStorage.setItem(DEMO_CLINIC_STORAGE_KEY, JSON.stringify(clinic));
+  } catch {
+    // ignore
+  }
+}
 
 export interface Clinic {
   id: string;
@@ -15,9 +43,9 @@ export interface Clinic {
   deviceCount?: number;
 }
 
-function getStored(): Clinic | null {
+function getStored(key: string): Clinic | null {
   try {
-    const raw = localStorage.getItem(CLINIC_STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw) as Clinic;
   } catch {
@@ -26,18 +54,22 @@ function getStored(): Clinic | null {
 }
 
 export function getClinic(): Clinic | null {
-  return getStored();
+  const key = getClinicStorageKey();
+  if (key === DEMO_CLINIC_STORAGE_KEY) ensureDemoClinicSeed();
+  return getStored(key);
 }
 
 /** Remove the assigned clinic from this device. Admin can reassign from Clinic Log. */
 export function unassignClinic(): void {
   try {
     localStorage.removeItem(CLINIC_STORAGE_KEY);
+    if (isDemoMode()) localStorage.removeItem(DEMO_CLINIC_STORAGE_KEY);
   } catch {}
 }
 
 export function saveClinic(clinic: Partial<Clinic> & { name: string }): Clinic {
-  const existing = getStored();
+  const key = getClinicStorageKey();
+  const existing = getStored(key);
   const now = new Date().toISOString();
   const next: Clinic = {
     id: existing?.id ?? crypto.randomUUID(),
@@ -52,7 +84,7 @@ export function saveClinic(clinic: Partial<Clinic> & { name: string }): Clinic {
     deviceCount: clinic.deviceCount ?? existing?.deviceCount ?? 1,
   };
   try {
-    localStorage.setItem(CLINIC_STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(key, JSON.stringify(next));
   } catch {}
   return next;
 }

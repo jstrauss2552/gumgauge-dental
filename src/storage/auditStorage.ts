@@ -2,6 +2,9 @@
  * Audit trail: who changed what and when.
  * Stored in localStorage (key: gumgauge-audit). In production this would be server-side.
  */
+import { DEMO_MODE_KEY } from "../constants/admin";
+import { getDemoAuditEntries } from "../data/demoSeed";
+
 export interface AuditEntry {
   id: string;
   timestamp: string; // ISO
@@ -13,9 +16,34 @@ export interface AuditEntry {
 }
 
 const STORAGE_KEY = "gumgauge-audit";
+const DEMO_STORAGE_KEY = "gumgauge-demo-audit";
 const MAX_ENTRIES = 2000;
 
 let currentActor: string | undefined;
+
+function isDemoMode(): boolean {
+  try {
+    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getAuditStorageKey(): string {
+  return isDemoMode() ? DEMO_STORAGE_KEY : STORAGE_KEY;
+}
+
+function ensureDemoAuditSeed(): void {
+  if (!isDemoMode()) return;
+  try {
+    const raw = localStorage.getItem(DEMO_STORAGE_KEY);
+    if (raw) return;
+    const entries = getDemoAuditEntries();
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // ignore
+  }
+}
 
 export function setAuditActor(name: string | undefined) {
   currentActor = name;
@@ -26,8 +54,10 @@ export function getAuditActor(): string | undefined {
 }
 
 function getEntries(): AuditEntry[] {
+  const key = getAuditStorageKey();
+  if (key === DEMO_STORAGE_KEY) ensureDemoAuditSeed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -35,15 +65,16 @@ function getEntries(): AuditEntry[] {
   }
 }
 
-function saveEntries(entries: AuditEntry[]) {
+function saveEntries(entries: AuditEntry[], key: string) {
   const trimmed = entries.slice(-MAX_ENTRIES);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+  localStorage.setItem(key, JSON.stringify(trimmed));
 }
 
 export function addAuditEntry(entry: Omit<AuditEntry, "id">): void {
+  const key = getAuditStorageKey();
   const list = getEntries();
   list.push({ ...entry, id: crypto.randomUUID(), actor: entry.actor ?? currentActor ?? "System" });
-  saveEntries(list);
+  saveEntries(list, key);
 }
 
 export function getAuditEntries(options?: { entityType?: string; entityId?: string; limit?: number }): AuditEntry[] {
@@ -58,6 +89,6 @@ export function getAuditEntries(options?: { entityType?: string; entityId?: stri
 /** Clear the entire audit log. For admin use only. Does not add an entry (to avoid recursion). */
 export function clearAuditLog(): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+    localStorage.setItem(getAuditStorageKey(), JSON.stringify([]));
   } catch {}
 }

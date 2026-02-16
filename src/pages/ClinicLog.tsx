@@ -105,7 +105,7 @@ export default function ClinicLog() {
                 to="/dashboard"
                 className="px-4 py-2 bg-navy text-white rounded-lg font-medium hover:bg-navy-light"
               >
-                Open dashboard (as {clinic.name})
+                View as {clinic.name} →
               </Link>
             )}
             <button
@@ -118,7 +118,7 @@ export default function ClinicLog() {
           </div>
         </div>
         <p className="text-navy/70">
-          Clinical stats for this installation. Assign clinics from pending registrations, or open the dashboard to view as a clinic.
+          GumGauge company overview. View clinical stats and log in as a clinic to access their dashboard.
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { getStaffById, getStaffByLogin } from "../storage/staffStorage";
 import { setAuditActor } from "../storage/auditStorage";
-import { ADMIN_SESSION_KEY } from "../constants/admin";
+import { ADMIN_SESSION_KEY, DEMO_MODE_KEY } from "../constants/admin";
 import type { Staff } from "../types";
 
 const AUTH_STORAGE_KEY = "gumgauge-signed-in-staff-id";
@@ -10,6 +10,14 @@ const SESSION_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 function getIsAdmin(): boolean {
   try {
     return sessionStorage.getItem(ADMIN_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getIsDemoMode(): boolean {
+  try {
+    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
   } catch {
     return false;
   }
@@ -94,7 +102,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isAdmin = getIsAdmin();
-  const isSignedIn = !!staff || isAdmin;
+  const isDemoMode = getIsDemoMode();
+  /** In demo mode, treat as signed in for viewing and editing (no staff, but full UI access). */
+  const isSignedIn = !!staff || isAdmin || isDemoMode;
 
   return (
     <AuthContext.Provider value={{ staff, isSignedIn, isAdmin, login, logout }}>

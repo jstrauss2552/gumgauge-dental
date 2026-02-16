@@ -182,8 +182,6 @@ export default function PatientChart() {
     toSave.nextAppointmentDurationMinutes = num(toSave.nextAppointmentDurationMinutes) as number | undefined;
     toSave.recallIntervalMonths = num(toSave.recallIntervalMonths) as number | undefined;
     toSave.balanceDue = num(toSave.balanceDue) as number | undefined;
-    toSave.insuranceDeductibleRemaining = num(toSave.insuranceDeductibleRemaining) as number | undefined;
-    toSave.insuranceDeductibleAnnual = num(toSave.insuranceDeductibleAnnual) as number | undefined;
     updatePatient(patient.id, toSave);
     setPatient(getPatientById(patient.id)!);
     setForm(getPatientById(patient.id));
@@ -948,7 +946,7 @@ export default function PatientChart() {
           />
         </CollapsibleSection>
 
-        <CollapsibleSection id="billing" title="Billing" subtitle="Balance, deductible, payment history. For full billing (payment methods, send to insurance) use the Billing tab.">
+        <CollapsibleSection id="billing" title="Billing" subtitle="Balance and payment history. For full billing (payment methods, send to insurance) use the Billing tab.">
           <div className="mb-3">
             <Link to="/dashboard/billing" className="text-sky-dark font-medium text-sm hover:underline">Open Billing tab →</Link>
           </div>
@@ -967,22 +965,6 @@ export default function PatientChart() {
               ) : (
                 <p className="text-navy">
                   {patient.balanceDue != null ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(patient.balanceDue) : "—"}
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm text-navy/70 mb-1">Insurance deductible (remaining / annual)</label>
-              {editing && form ? (
-                <div className="flex gap-2 items-center">
-                  <input type="number" min={0} step={0.01} value={form.insuranceDeductibleRemaining != null ? String(form.insuranceDeductibleRemaining) : ""} onChange={(e) => update("insuranceDeductibleRemaining", e.target.value === "" ? "" : e.target.value)} placeholder="Remaining" className="w-24 px-3 py-2 border border-sky/60 rounded-lg" />
-                  <span className="text-navy/60">/</span>
-                  <input type="number" min={0} step={0.01} value={form.insuranceDeductibleAnnual != null ? String(form.insuranceDeductibleAnnual) : ""} onChange={(e) => update("insuranceDeductibleAnnual", e.target.value === "" ? "" : e.target.value)} placeholder="Annual" className="w-24 px-3 py-2 border border-sky/60 rounded-lg" />
-                </div>
-              ) : (
-                <p className="text-navy">
-                  {patient.insuranceDeductibleRemaining != null && patient.insuranceDeductibleAnnual != null
-                    ? `${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(patient.insuranceDeductibleRemaining)} / ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(patient.insuranceDeductibleAnnual)}`
-                    : "—"}
                 </p>
               )}
             </div>

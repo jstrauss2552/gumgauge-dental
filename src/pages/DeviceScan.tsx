@@ -7,8 +7,9 @@ import { densityToHealthResult, densityToLightPercent } from "../types";
 import GumGaugeMouthView from "../components/GumGaugeMouthView";
 
 const MAX_FILE_SIZE_MB = 3;
-const FLASH_STEP_MS = 500;
-const TOTAL_FLASHES = 6;
+/** Scan runs 6–10 seconds: 8 steps × 1s = 8 seconds. Light flashes lower (dimmer) during scan. */
+const FLASH_STEP_MS = 1000;
+const TOTAL_FLASHES = 8;
 
 /** Build simulated GumGauge readings for all 32 teeth (for demo; real device would send these). */
 function buildSimulatedGumGaugeReadings(): GumGaugeToothReading[] {
@@ -245,21 +246,22 @@ export default function DeviceScan() {
           {scanInProgress && (
             <div className="mt-4 p-4 bg-sky/10 rounded-xl border border-sky/40">
               <p className="text-sm font-medium text-navy mb-2">
-                {flashStep < 3 ? "Preparing…" : flashStep < 5 ? "Confirming…" : "Complete"}
-                {flashStep < 5 && ` (${flashStep < 3 ? "yellow" : "green"} ${(flashStep % 3) + 1}/3)`}
+                {flashStep < 4 ? "Preparing…" : flashStep < 7 ? "Scanning…" : "Complete"}
+                {flashStep < TOTAL_FLASHES && ` (step ${flashStep + 1}/${TOTAL_FLASHES})`}
               </p>
+              {/* Device scan light: flashes lower (dimmer) and takes ~8s to complete */}
               <div
-                className={`h-3 w-full rounded overflow-hidden transition-colors duration-300 ${
-                  flashStep >= 3 ? "bg-green-600" : "bg-amber-400"
-                } ${flashStep < 5 ? "animate-pulse" : ""}`}
+                className={`h-3 w-full rounded overflow-hidden transition-all duration-500 ${
+                  flashStep >= 6 ? "bg-green-600 opacity-90" : flashStep >= 3 ? "bg-amber-500 opacity-60" : "bg-amber-400 opacity-40"
+                } ${flashStep < TOTAL_FLASHES ? "animate-pulse" : ""}`}
                 role="progressbar"
-                aria-valuenow={flashStep >= 5 ? TOTAL_FLASHES : flashStep + 1}
+                aria-valuenow={flashStep + 1}
                 aria-valuemin={0}
                 aria-valuemax={TOTAL_FLASHES}
                 aria-label="Scan progress"
               />
               <p className="text-xs text-navy/60 mt-1">
-                {flashStep >= 5 ? "Scan complete. Add readings to chart below." : "Solid bar: 3 yellow flashes, then 3 green (3rd green holds)."}
+                {flashStep >= TOTAL_FLASHES - 1 ? "Scan complete. Add readings to chart below." : "Device light flashing (scan in progress, ~8 sec total)."}
               </p>
             </div>
           )}

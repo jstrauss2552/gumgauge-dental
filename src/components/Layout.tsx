@@ -51,7 +51,8 @@ export default function Layout() {
               ? [...baseNavItems, { to: "/dashboard/my-patients", label: "My patients" }]
               : baseNavItems;
             if (isDemo) {
-              navItems = navItems.filter((item) => ["/dashboard", "/dashboard/patients", "/dashboard/appointments", "/dashboard/clinic"].includes(item.to));
+              // In demo, show all main tabs (no "My patients" — no signed-in staff)
+              navItems = baseNavItems;
             }
             const items = isAdmin ? [...navItems, { to: "/dashboard/clinic-log", label: "Clinic Log" }] : navItems;
             return items;

@@ -1,11 +1,40 @@
 import type { Staff } from "../types";
 import { addAuditEntry } from "./auditStorage";
+import { DEMO_MODE_KEY } from "../constants/admin";
+import { getDemoStaff } from "../data/demoSeed";
 
 const STORAGE_KEY = "gumgauge-staff";
+const DEMO_STORAGE_KEY = "gumgauge-demo-staff";
+
+function isDemoMode(): boolean {
+  try {
+    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function getStaffStorageKey(): string {
+  return isDemoMode() ? DEMO_STORAGE_KEY : STORAGE_KEY;
+}
+
+function ensureDemoStaffSeed(): void {
+  if (!isDemoMode()) return;
+  try {
+    const raw = localStorage.getItem(DEMO_STORAGE_KEY);
+    if (raw) return;
+    const staff = getDemoStaff();
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(staff));
+  } catch {
+    // ignore
+  }
+}
 
 export function getStaff(): Staff[] {
+  const key = getStaffStorageKey();
+  if (key === DEMO_STORAGE_KEY) ensureDemoStaffSeed();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     return JSON.parse(raw);
   } catch {
@@ -14,7 +43,8 @@ export function getStaff(): Staff[] {
 }
 
 export function saveStaff(staff: Staff[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(staff));
+  const key = getStaffStorageKey();
+  localStorage.setItem(key, JSON.stringify(staff));
 }
 
 export function getStaffById(id: string): Staff | undefined {

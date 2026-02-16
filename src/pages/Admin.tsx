@@ -35,7 +35,7 @@ export default function Admin() {
       <div className="w-full max-w-sm">
         <h1 className="text-xl font-semibold text-white text-center mb-2">GumGauge Admin</h1>
         <p className="text-sky-light/90 text-sm text-center mb-6">
-          Company login. View clinics and device usage.
+          Company login. View clinical stats and switch into clinic views.
         </p>
         <form onSubmit={handleLogin} className="bg-white/10 rounded-xl border border-white/20 p-6 space-y-4" autoComplete="off">
           <div>

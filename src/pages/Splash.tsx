@@ -7,7 +7,7 @@ export default function Splash() {
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
 
-  /** Start System: unlogged-in view of a clinic with option to sign in. */
+  /** Start System: unlogged-in view of a clinic with option to sign in when in the system. */
   const handleStart = () => {
     setStarting(true);
     try {
@@ -16,7 +16,7 @@ export default function Splash() {
     setTimeout(() => navigate("/dashboard", { replace: true }), 400);
   };
 
-  /** Demo: demo-only clinic view for potential customers (no real data / limited view). */
+  /** Demo: demo-only clinic view for potential customers (no real data, limited view). */
   const handleDemo = () => {
     try {
       sessionStorage.setItem(DEMO_MODE_KEY, "1");
@@ -26,7 +26,7 @@ export default function Splash() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-navy relative">
-      <div className="absolute top-6 right-6">
+      <div className="absolute top-6 right-6 flex gap-2">
         <Link
           to="/admin"
           className="px-4 py-2 text-sky-light text-sm font-medium hover:text-white border border-white/30 rounded-lg hover:bg-white/10"

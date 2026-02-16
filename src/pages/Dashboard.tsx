@@ -5,6 +5,15 @@ import { getClinic } from "../storage/clinicStorage";
 import { formatDisplayDate, formatISODateTimeInTimezone } from "../utils/dateFormat";
 import { useTimezoneContext } from "../contexts/TimezoneContext";
 import { useClock, useTodayInTimezone } from "../hooks/useAppTimezone";
+import { DEMO_MODE_KEY } from "../constants/admin";
+
+function isDemoMode(): boolean {
+  try {
+    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DEMO_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 export default function Dashboard() {
   const clinic = getClinic();
@@ -33,6 +42,11 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
+      {isDemoMode() && (
+        <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
+          <strong>Demo mode.</strong> You’re viewing sample data. You can explore patients, charts, appointments, and clinic info. Changes are saved only for this demo session.
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <h1 className="text-2xl font-semibold text-navy">Dashboard</h1>
         {clinic?.name && (

@@ -91,36 +91,45 @@ export default function Appointments() {
   }
 
   const currentYear = parseInt(today.slice(0, 4), 10);
-  const yearRange = useMemo(() => {
-    const arr: string[] = [];
-    for (let y = currentYear - 5; y <= currentYear + 5; y++) arr.push(String(y));
-    return arr;
-  }, [currentYear]);
+
+  const periodOptions = useMemo(() => {
+    const dates = rawList.map((r) => r.date);
+    const uniqueDates = Array.from(new Set(dates));
+    const years = Array.from(new Set(uniqueDates.map(getYear))).sort();
+    const weeks = Array.from(new Set(uniqueDates.map(getWeekKey))).sort();
+    const monthsByYear: Record<string, string[]> = {};
+    uniqueDates.forEach((d) => {
+      const y = getYear(d);
+      const m = getMonth(d);
+      if (!monthsByYear[y]) monthsByYear[y] = [];
+      if (!monthsByYear[y].includes(m)) monthsByYear[y].push(m);
+    });
+    Object.keys(monthsByYear).forEach((y) => monthsByYear[y].sort());
+    return { years, weeks, monthsByYear };
+  }, [rawList]);
 
   const MONTH_OPTIONS = useMemo(() => {
     const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     return names.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }));
   }, []);
 
-  const periodOptions = useMemo(() => {
-    const dates = rawList.map((r) => r.date);
-    const weeks = Array.from(new Set(dates.map(getWeekKey))).sort();
-    return { year: yearRange, week: weeks };
-  }, [rawList, view, patientFilterId, yearRange]);
-
   const monthPeriodValue = monthYear && monthNum ? `${monthYear}-${monthNum}` : "";
+  const monthOptionsForYear = (periodOptions.monthsByYear[monthYear ?? ""] ?? []);
 
   const list = useMemo(() => {
     if (periodGroup === "month") {
       if (!monthPeriodValue) return rawList;
       return rawList.filter((item) => getMonth(item.date) === monthPeriodValue);
     }
-    if (!periodValue) return rawList;
-    return rawList.filter((item) => {
-      const d = item.date;
-      if (periodGroup === "year") return getYear(d) === periodValue;
-      return getWeekKey(d) === periodValue;
-    });
+    if (periodGroup === "year") {
+      if (!periodValue) return rawList;
+      return rawList.filter((item) => getYear(item.date) === periodValue);
+    }
+    if (periodGroup === "week") {
+      if (!periodValue) return rawList;
+      return rawList.filter((item) => getWeekKey(item.date) === periodValue);
+    }
+    return rawList;
   }, [rawList, periodGroup, periodValue, monthPeriodValue]);
 
   const patientOptions = useMemo(
@@ -249,11 +258,14 @@ export default function Appointments() {
               <label className="text-sm text-navy/70 whitespace-nowrap">Year</label>
               <select
                 value={monthYear}
-                onChange={(e) => setMonthYear(e.target.value)}
+                onChange={(e) => {
+                  setMonthYear(e.target.value);
+                  setMonthNum("");
+                }}
                 className="px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy min-w-[100px]"
               >
                 <option value="">Select year</option>
-                {periodOptions.year.map((y) => (
+                {(periodOptions.years.length > 0 ? periodOptions.years : Array.from({ length: 11 }, (_, i) => String(currentYear - 5 + i))).map((y) => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
@@ -266,9 +278,14 @@ export default function Appointments() {
                 className="px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy min-w-[140px]"
               >
                 <option value="">Select month</option>
-                {MONTH_OPTIONS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
+                {(monthYear ? monthOptionsForYear : []).length > 0
+                  ? monthOptionsForYear.map((m) => {
+                      const opt = MONTH_OPTIONS.find((o) => o.value === m);
+                      return <option key={m} value={m}>{opt?.label ?? m}</option>;
+                    })
+                  : MONTH_OPTIONS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
               </select>
             </div>
           </>
@@ -284,11 +301,11 @@ export default function Appointments() {
                 {periodGroup === "year" ? "All years" : "All weeks"}
               </option>
               {periodGroup === "year" &&
-                periodOptions.year.map((opt) => (
+                (periodOptions.years.length > 0 ? periodOptions.years : Array.from({ length: 11 }, (_, i) => String(currentYear - 5 + i))).map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               {periodGroup === "week" &&
-                periodOptions.week.map((opt) => (
+                periodOptions.weeks.map((opt) => (
                   <option key={opt} value={opt}>
                     {formatDisplayDate(opt)} (week)
                   </option>
