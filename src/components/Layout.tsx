@@ -21,6 +21,7 @@ const baseNavItems = [
   { to: "/dashboard/device-scan", label: "Device Scan" },
   { to: "/dashboard/recall", label: "Recall" },
   { to: "/dashboard/audit", label: "Audit log" },
+  { to: "/dashboard/backup", label: "Backup" },
   { to: "/dashboard/clinic", label: "Clinic" },
 ];
 

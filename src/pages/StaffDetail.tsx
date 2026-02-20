@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getStaffById, updateStaff, deleteStaff } from "../storage/staffStorage";
+import { getAvailabilityForStaff, addAvailability, deleteAvailability } from "../storage/staffAvailabilityStorage";
 import { getPatients } from "../storage";
 import type { Staff } from "../types";
 import { formatDisplayDate } from "../utils/dateFormat";
@@ -61,6 +62,10 @@ export default function StaffDetail() {
   const [form, setForm] = useState<Staff | null>(staff || null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [newPassword, setNewPassword] = useState("");
+  const [availDay, setAvailDay] = useState<number>(1);
+  const [availStart, setAvailStart] = useState("09:00");
+  const [availEnd, setAvailEnd] = useState("17:00");
+  const [availRefresh, setAvailRefresh] = useState(0);
 
   useEffect(() => {
     const s = getStaffById(id || "");
@@ -100,6 +105,22 @@ export default function StaffDetail() {
   const update = (key: keyof Staff, value: string) => {
     if (!form) return;
     setForm({ ...form, [key]: value });
+  };
+
+  const availability = getAvailabilityForStaff(staff.id);
+  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  const handleAddAvailability = () => {
+    addAvailability({
+      staffId: staff.id,
+      dayOfWeek: availDay,
+      startTime: availStart,
+      endTime: availEnd,
+    });
+    setAvailDay(1);
+    setAvailStart("09:00");
+    setAvailEnd("17:00");
+    setAvailRefresh((r) => r + 1);
   };
 
   const section = (title: string, children: React.ReactNode) => (
@@ -257,6 +278,35 @@ export default function StaffDetail() {
 
         {section("Notes", (
           <Field label="" value={staff.notes ?? ""} editing={!!editing && !!form} formValue={form?.notes ?? ""} type="textarea" rows={4} placeholder="Internal notes" onChange={(v) => update("notes", v)} />
+        ))}
+
+        {section("Availability", (
+          <>
+            <p className="text-xs text-navy/60 mb-2">When this provider is available for appointments. Used to prevent booking when out.</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <select value={availDay} onChange={(e) => setAvailDay(Number(e.target.value))} className="px-2 py-1.5 border border-sky/60 rounded-lg text-sm bg-white">
+                {DAY_NAMES.map((d, i) => (
+                  <option key={d} value={i}>{d}</option>
+                ))}
+              </select>
+              <input type="time" value={availStart} onChange={(e) => setAvailStart(e.target.value)} className="px-2 py-1.5 border border-sky/60 rounded-lg text-sm" />
+              <span className="text-navy/70 self-center">to</span>
+              <input type="time" value={availEnd} onChange={(e) => setAvailEnd(e.target.value)} className="px-2 py-1.5 border border-sky/60 rounded-lg text-sm" />
+              <button type="button" onClick={handleAddAvailability} className="px-3 py-1.5 bg-navy text-white rounded-lg text-sm font-medium hover:bg-navy-light">Add</button>
+            </div>
+            {availability.length === 0 ? (
+              <p className="text-sm text-navy/50">No availability set. Add days and times above.</p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {availability.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between py-1.5 px-2 rounded bg-sky/5 border border-sky/20">
+                    <span className="text-navy">{DAY_NAMES[a.dayOfWeek]} {a.startTime} – {a.endTime}</span>
+                    <button type="button" onClick={() => { deleteAvailability(a.id); setAvailRefresh((r) => r + 1); }} className="text-red-600 hover:underline text-xs">Remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         ))}
 
         {STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS.includes(staff.position as (typeof STAFF_POSITIONS_WITH_ASSIGNED_PATIENTS)[number]) && (

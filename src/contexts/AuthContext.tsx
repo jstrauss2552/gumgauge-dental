@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       timeoutId = setTimeout(() => {
         setStaffId(null);
         setStaff(null);
-        setAuditActor(undefined);
+        setAuditActor(undefined, undefined);
         try { sessionStorage.removeItem(AUTH_STORAGE_KEY); } catch {}
       }, SESSION_TIMEOUT_MS);
     };
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const found = getStaffByLogin(loginEmail.trim(), password);
     if (found) {
       setStaffId(found.id);
-      setAuditActor(`${found.firstName} ${found.lastName}`);
+      setAuditActor(`${found.firstName} ${found.lastName}`, found.id);
       try {
         sessionStorage.setItem(AUTH_STORAGE_KEY, found.id);
       } catch {}
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setStaffId(null);
     setStaff(null);
-    setAuditActor(undefined);
+    setAuditActor(undefined, undefined);
     try {
       sessionStorage.removeItem(AUTH_STORAGE_KEY);
     } catch {}

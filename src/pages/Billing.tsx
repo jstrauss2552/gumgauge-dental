@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { getPatients, getPatientById, updatePatient } from "../storage";
+import { getFeeForPlan, getFeeSchedule, addFeeScheduleEntry, deleteFeeScheduleEntry } from "../storage/feeScheduleStorage";
 import { useAuth } from "../contexts/AuthContext";
-import type { Patient, PaymentMethod, InsuranceClaim, PaymentHistoryEntry, InvoiceLine } from "../types";
+import type { Patient, PaymentMethod, InsuranceClaim, PaymentHistoryEntry, InvoiceLine, Adjustment, ClaimPayment } from "../types";
 import { CDT_CODES, getDefaultFeeForCode } from "../constants/cdtCodes";
 import { CLAIM_OR_PROCEDURE_DESCRIPTIONS } from "../constants/autocompleteSuggestions";
 import { formatDisplayDate } from "../utils/dateFormat";
@@ -40,6 +41,21 @@ export default function Billing() {
   const [chargeAppointmentDate, setChargeAppointmentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedProcedureCodes, setSelectedProcedureCodes] = useState<Set<string>>(new Set());
   const [procedureAmountOverrides, setProcedureAmountOverrides] = useState<Record<string, string>>({});
+  const [writeOffModal, setWriteOffModal] = useState(false);
+  const [writeOffAmount, setWriteOffAmount] = useState("");
+  const [writeOffReason, setWriteOffReason] = useState("");
+  const [writeOffType, setWriteOffType] = useState<Adjustment["type"]>("Write-off");
+  const [billingRefresh, setBillingRefresh] = useState(0);
+  const [eobModal, setEobModal] = useState(false);
+  const [eobClaimId, setEobClaimId] = useState<string | null>(null);
+  const [eobPaidAmount, setEobPaidAmount] = useState("");
+  const [eobAllowedAmount, setEobAllowedAmount] = useState("");
+  const [eobAdjustmentAmount, setEobAdjustmentAmount] = useState("");
+  const [eobPatientResponsibility, setEobPatientResponsibility] = useState("");
+  const [eobPaymentDate, setEobPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [feeSchedulePlan, setFeeSchedulePlan] = useState("");
+  const [feeScheduleCode, setFeeScheduleCode] = useState("");
+  const [feeScheduleFee, setFeeScheduleFee] = useState("");
 
   const selectedPatient = selectedPatientId ? getPatientById(selectedPatientId) : null;
   const balanceDue = selectedPatient?.balanceDue ?? 0;
@@ -47,6 +63,7 @@ export default function Billing() {
   const paymentHistory = selectedPatient?.paymentHistory ?? [];
   const insuranceClaims = selectedPatient?.insuranceClaims ?? [];
   const invoiceLines = selectedPatient?.invoiceLines ?? [];
+  const adjustments = selectedPatient?.adjustments ?? [];
 
   const handleRecordPayment = () => {
     if (!selectedPatient) return;
@@ -81,6 +98,7 @@ export default function Billing() {
     const nextHistory = [...paymentHistory, newPay];
     const newBalance = Math.max(0, balanceDue - amount);
     updatePatient(selectedPatient.id, { paymentHistory: nextHistory, balanceDue: newBalance });
+    setBillingRefresh((k) => k + 1);
     setRecordPaymentModal(false);
     setPaymentAmount("");
     setPaymentNote("");
@@ -113,6 +131,7 @@ export default function Billing() {
     };
     const next = [...paymentMethods, method];
     updatePatient(selectedPatient.id, { paymentMethods: next });
+    setBillingRefresh((k) => k + 1);
     setAddPaymentMethodModal(false);
     setNewMethodType("Card");
     setNewMethodCardNumber("");
@@ -123,6 +142,7 @@ export default function Billing() {
   const removePaymentMethod = (id: string) => {
     if (!selectedPatient) return;
     updatePatient(selectedPatient.id, { paymentMethods: paymentMethods.filter((m) => m.id !== id) });
+    setBillingRefresh((k) => k + 1);
   };
 
   const handleSendClaim = () => {
@@ -139,6 +159,7 @@ export default function Billing() {
     };
     const next = [...insuranceClaims, claim];
     updatePatient(selectedPatient.id, { insuranceClaims: next });
+    setBillingRefresh((k) => k + 1);
     setSendClaimModal(false);
     setClaimDescription("");
     setClaimAmount("");
@@ -172,7 +193,101 @@ export default function Billing() {
       const n = Number(override);
       if (!Number.isNaN(n) && n >= 0) return n;
     }
+    const planId = selectedPatient?.insurancePlan ?? "Default";
+    const feeScheduleFee = getFeeForPlan(planId, code);
+    if (feeScheduleFee != null) return feeScheduleFee;
     return getDefaultFeeForCode(code) ?? 0;
+  };
+
+  const handleWriteOff = () => {
+    if (!selectedPatient) return;
+    const amount = Number(writeOffAmount);
+    if (Number.isNaN(amount) || amount <= 0 || !writeOffReason.trim()) return;
+    const now = new Date().toISOString();
+    const newAdj: Adjustment = {
+      id: crypto.randomUUID(),
+      date: now.slice(0, 10),
+      amount,
+      reason: writeOffReason.trim(),
+      type: writeOffType,
+      addedAt: now,
+    };
+    const nextAdj = [...adjustments, newAdj];
+    const newBalance = Math.max(0, (selectedPatient.balanceDue ?? 0) - amount);
+    updatePatient(selectedPatient.id, { adjustments: nextAdj, balanceDue: newBalance });
+    setWriteOffModal(false);
+    setWriteOffAmount("");
+    setWriteOffReason("");
+    setWriteOffType("Write-off");
+    setBillingRefresh((k) => k + 1);
+  };
+
+  const openEobModal = (claimId: string) => {
+    setEobClaimId(claimId);
+    setEobPaidAmount("");
+    setEobAllowedAmount("");
+    setEobAdjustmentAmount("");
+    setEobPatientResponsibility("");
+    setEobPaymentDate(new Date().toISOString().slice(0, 10));
+    setEobModal(true);
+  };
+
+  const feeScheduleEntries = getFeeSchedule();
+
+  const handleAddFeeScheduleEntry = () => {
+    const plan = feeSchedulePlan.trim();
+    const code = feeScheduleCode.trim();
+    const fee = Number(feeScheduleFee);
+    if (!plan || !code || Number.isNaN(fee) || fee < 0) return;
+    addFeeScheduleEntry({ planIdentifier: plan, procedureCode: code, fee });
+    setFeeSchedulePlan("");
+    setFeeScheduleCode("");
+    setFeeScheduleFee("");
+    setBillingRefresh((k) => k + 1);
+  };
+
+  const handleRecordEob = () => {
+    if (!selectedPatient || !eobClaimId) return;
+    const paidAmount = Number(eobPaidAmount);
+    if (Number.isNaN(paidAmount) || paidAmount < 0) return;
+    const claim = insuranceClaims.find((c) => c.id === eobClaimId);
+    if (!claim) return;
+    const now = new Date().toISOString();
+    const newPayment: ClaimPayment = {
+      id: crypto.randomUUID(),
+      claimId: eobClaimId,
+      paidAmount,
+      allowedAmount: eobAllowedAmount.trim() ? Number(eobAllowedAmount) : undefined,
+      adjustmentAmount: eobAdjustmentAmount.trim() ? Number(eobAdjustmentAmount) : undefined,
+      patientResponsibility: eobPatientResponsibility.trim() ? Number(eobPatientResponsibility) : undefined,
+      paymentDate: eobPaymentDate,
+      addedAt: now,
+    };
+    const existingPayments = claim.claimPayments ?? [];
+    const totalPaid = existingPayments.reduce((s, p) => s + p.paidAmount, 0) + paidAmount;
+    const newStatus: InsuranceClaim["status"] =
+      totalPaid >= claim.amount ? "Paid" : totalPaid > 0 ? "Partially paid" : claim.status;
+    const nextClaims = insuranceClaims.map((c) =>
+      c.id === eobClaimId
+        ? { ...c, claimPayments: [...existingPayments, newPayment], status: newStatus }
+        : c
+    );
+    const newBalance = Math.max(0, (selectedPatient.balanceDue ?? 0) - paidAmount);
+    const newPayEntry: PaymentHistoryEntry = {
+      id: crypto.randomUUID(),
+      date: eobPaymentDate,
+      amount: paidAmount,
+      note: `Insurance EOB: ${claim.description}`,
+      amountWithInsurance: paidAmount,
+    };
+    updatePatient(selectedPatient.id, {
+      insuranceClaims: nextClaims,
+      paymentHistory: [...paymentHistory, newPayEntry],
+      balanceDue: newBalance,
+    });
+    setBillingRefresh((k) => k + 1);
+    setEobModal(false);
+    setEobClaimId(null);
   };
 
   const handleAddChargesToTab = () => {
@@ -201,6 +316,7 @@ export default function Billing() {
     setSelectedProcedureCodes(new Set());
     setProcedureAmountOverrides({});
     setChargeAppointmentDate(new Date().toISOString().slice(0, 10));
+    setBillingRefresh((k) => k + 1);
   };
 
   const chargesByDate = invoiceLines.reduce<Record<string, InvoiceLine[]>>((acc, line) => {
@@ -216,6 +332,27 @@ export default function Billing() {
   const productionThisMonth = allPatients.reduce((s, p) => s + (p.paymentHistory ?? []).filter((pay) => pay.date.startsWith(new Date().toISOString().slice(0, 7))).reduce((sum, pay) => sum + pay.amount, 0), 0);
   const totalOutstanding = allPatients.reduce((s, p) => s + (p.balanceDue ?? 0), 0);
 
+  const agingReport = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const buckets = { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+    allPatients.forEach((p) => {
+      (p.invoiceLines ?? []).forEach((line) => {
+        const status = line.status ?? "Pending";
+        if (status === "Paid") return;
+        const apptDate = new Date(line.appointmentDate);
+        apptDate.setHours(0, 0, 0, 0);
+        const days = Math.floor((today.getTime() - apptDate.getTime()) / (24 * 60 * 60 * 1000));
+        const amount = line.amount ?? 0;
+        if (days <= 30) buckets["0-30"] += amount;
+        else if (days <= 60) buckets["31-60"] += amount;
+        else if (days <= 90) buckets["61-90"] += amount;
+        else buckets["90+"] += amount;
+      });
+    });
+    return buckets;
+  }, [allPatients, billingRefresh]);
+
   return (
     <div className="p-8">
       <h1 className="text-2xl font-semibold text-navy mb-2">Billing</h1>
@@ -224,14 +361,37 @@ export default function Billing() {
       </p>
 
       {isAdmin && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
-            <p className="text-xs text-navy/60 uppercase">Production (this month)</p>
-            <p className="text-xl font-semibold text-navy">{formatCurrency(productionThisMonth)}</p>
+        <div className="space-y-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
+              <p className="text-xs text-navy/60 uppercase">Production (this month)</p>
+              <p className="text-xl font-semibold text-navy">{formatCurrency(productionThisMonth)}</p>
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
+              <p className="text-xs text-navy/60 uppercase">Total outstanding</p>
+              <p className="text-xl font-semibold text-navy">{formatCurrency(totalOutstanding)}</p>
+            </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
-            <p className="text-xs text-navy/60 uppercase">Total outstanding</p>
-            <p className="text-xl font-semibold text-navy">{formatCurrency(totalOutstanding)}</p>
+            <h3 className="text-sm font-semibold text-navy mb-3">Aging report (outstanding by service date)</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-sky/10 rounded-lg p-3 border border-sky/30">
+                <p className="text-xs text-navy/70">0–30 days</p>
+                <p className="text-lg font-semibold text-navy">{formatCurrency(agingReport["0-30"])}</p>
+              </div>
+              <div className="bg-sky/10 rounded-lg p-3 border border-sky/30">
+                <p className="text-xs text-navy/70">31–60 days</p>
+                <p className="text-lg font-semibold text-navy">{formatCurrency(agingReport["31-60"])}</p>
+              </div>
+              <div className="bg-sky/10 rounded-lg p-3 border border-sky/30">
+                <p className="text-xs text-navy/70">61–90 days</p>
+                <p className="text-lg font-semibold text-navy">{formatCurrency(agingReport["61-90"])}</p>
+              </div>
+              <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                <p className="text-xs text-navy/70">90+ days</p>
+                <p className="text-lg font-semibold text-navy">{formatCurrency(agingReport["90+"])}</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -309,13 +469,53 @@ export default function Billing() {
               </div>
             </div>
 
-            {/* Account summary: balance */}
+            {/* Account summary: balance + write-off + adjustments */}
             <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
               <h3 className="text-sm font-semibold text-navy mb-3">Account summary</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="flex flex-wrap items-center gap-4 mb-3">
                 <div className="bg-sky/10 rounded-lg p-3 border border-sky/30">
                   <p className="text-xs text-navy/70 uppercase tracking-wide">Balance due</p>
                   <p className="text-xl font-semibold text-navy mt-0.5">{formatCurrency(balanceDue)}</p>
+                </div>
+                {balanceDue > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setWriteOffModal(true); setWriteOffAmount(""); setWriteOffReason(""); setWriteOffType("Write-off"); }}
+                    className="px-3 py-1.5 border border-amber-500 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-50"
+                  >
+                    Write-off / adjustment
+                  </button>
+                )}
+              </div>
+              {adjustments.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-sky/20">
+                  <p className="text-xs font-medium text-navy/80 mb-1">Adjustments</p>
+                  <ul className="text-sm space-y-1 text-navy/80">
+                    {adjustments.map((a) => (
+                      <li key={a.id}>{formatDisplayDate(a.date)} — {a.type}: {formatCurrency(a.amount)} — {a.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Primary & secondary insurance */}
+            <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
+              <h3 className="text-sm font-semibold text-navy mb-3">Insurance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-navy/70 uppercase mb-1">Primary</p>
+                  <p className="text-sm text-navy">{selectedPatient.insuranceProvider || "—"} {selectedPatient.insurancePlan ? `(${selectedPatient.insurancePlan})` : ""}</p>
+                  {selectedPatient.insuranceMemberId && <p className="text-xs text-navy/70">ID: {selectedPatient.insuranceMemberId}</p>}
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-navy/70 uppercase mb-1">Secondary</p>
+                  <p className="text-sm text-navy">{selectedPatient.insuranceProvider2 || "—"} {selectedPatient.insurancePlan2 ? `(${selectedPatient.insurancePlan2})` : ""}</p>
+                  {selectedPatient.insuranceMemberId2 && <p className="text-xs text-navy/70">ID: {selectedPatient.insuranceMemberId2}</p>}
+                  {(selectedPatient.insuranceDeductibleAnnual2 != null || selectedPatient.insuranceDeductibleRemaining2 != null) && (
+                    <p className="text-xs text-navy/70">Deductible: {selectedPatient.insuranceDeductibleRemaining2 ?? "—"} / {selectedPatient.insuranceDeductibleAnnual2 ?? "—"} remaining</p>
+                  )}
+                  <Link to={`/dashboard/patients/${selectedPatient.id}`} className="text-xs text-sky-dark font-medium hover:underline mt-1 inline-block">Edit on chart</Link>
                 </div>
               </div>
             </div>
@@ -425,18 +625,32 @@ export default function Billing() {
               ) : (
                 <ul className="space-y-2 text-sm">
                   {insuranceClaims.map((c) => (
-                    <li key={c.id} className="flex justify-between items-center py-2 border-b border-sky/20 last:border-0">
-                      <span className="text-navy/80">
-                        {formatDisplayDate(c.date)} — {c.description} — {formatCurrency(c.amount)}
-                      </span>
-                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                        c.status === "Paid" ? "bg-green-100 text-green-800" :
-                        c.status === "Partially paid" ? "bg-amber-100 text-amber-800" :
-                        c.status === "Sent" ? "bg-sky/20 text-navy" :
-                        c.status === "Denied" ? "bg-red-100 text-red-800" : "bg-navy/10 text-navy"
-                      }`}>
-                        {c.status}
-                      </span>
+                    <li key={c.id} className="py-2 border-b border-sky/20 last:border-0">
+                      <div className="flex justify-between items-center gap-2 flex-wrap">
+                        <span className="text-navy/80">
+                          {formatDisplayDate(c.date)} — {c.description} — {formatCurrency(c.amount)}
+                        </span>
+                        <span className="flex items-center gap-2">
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                            c.status === "Paid" ? "bg-green-100 text-green-800" :
+                            c.status === "Partially paid" ? "bg-amber-100 text-amber-800" :
+                            c.status === "Sent" ? "bg-sky/20 text-navy" :
+                            c.status === "Denied" ? "bg-red-100 text-red-800" : "bg-navy/10 text-navy"
+                          }`}>
+                            {c.status}
+                          </span>
+                          {(c.status === "Sent" || c.status === "Partially paid") && (
+                            <button type="button" onClick={() => openEobModal(c.id)} className="text-xs text-sky-dark font-medium hover:underline">Record EOB</button>
+                          )}
+                        </span>
+                      </div>
+                      {(c.claimPayments?.length ?? 0) > 0 && (
+                        <ul className="mt-1 ml-2 text-xs text-navy/70 space-y-0.5">
+                          {c.claimPayments!.map((p) => (
+                            <li key={p.id}>{formatDisplayDate(p.paymentDate)} — {formatCurrency(p.paidAmount)} paid{p.patientResponsibility != null ? `; patient resp. ${formatCurrency(p.patientResponsibility)}` : ""}</li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -467,6 +681,36 @@ export default function Billing() {
                 </table>
               </div>
             </div>
+
+            {isAdmin && (
+              <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-4">
+                <h3 className="text-sm font-semibold text-navy mb-2">Fee schedule overrides</h3>
+                <p className="text-xs text-navy/60 mb-2">Override default fee by plan (e.g. insurance plan name). Used when adding charges.</p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <input type="text" value={feeSchedulePlan} onChange={(e) => setFeeSchedulePlan(e.target.value)} placeholder="Plan (e.g. PPO-A)" className="px-2 py-1.5 border border-sky/60 rounded-lg text-sm w-28" />
+                  <select value={feeScheduleCode} onChange={(e) => setFeeScheduleCode(e.target.value)} className="px-2 py-1.5 border border-sky/60 rounded-lg text-sm bg-white w-32">
+                    <option value="">— Code —</option>
+                    {CDT_CODES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.code}</option>
+                    ))}
+                  </select>
+                  <input type="number" min={0} step={0.01} value={feeScheduleFee} onChange={(e) => setFeeScheduleFee(e.target.value)} placeholder="Fee $" className="px-2 py-1.5 border border-sky/60 rounded-lg text-sm w-20" />
+                  <button type="button" onClick={handleAddFeeScheduleEntry} disabled={!feeSchedulePlan.trim() || !feeScheduleCode || Number(feeScheduleFee) < 0} className="px-3 py-1.5 bg-navy text-white rounded-lg text-sm font-medium hover:bg-navy-light disabled:opacity-50">Add</button>
+                </div>
+                {feeScheduleEntries.length === 0 ? (
+                  <p className="text-xs text-navy/50">No overrides. Add plan + code + fee above.</p>
+                ) : (
+                  <ul className="text-xs space-y-1 max-h-32 overflow-y-auto">
+                    {feeScheduleEntries.map((e) => (
+                      <li key={e.id} className="flex justify-between items-center py-1 border-b border-sky/20">
+                        <span className="text-navy/90">{e.planIdentifier} — {e.procedureCode}: {formatCurrency(e.fee)}</span>
+                        <button type="button" onClick={() => { deleteFeeScheduleEntry(e.id); setBillingRefresh((k) => k + 1); }} className="text-red-600 hover:underline">Remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -749,12 +993,12 @@ export default function Billing() {
                       type="number"
                       min={0}
                       step={0.01}
-                      value={selectedProcedureCodes.has(c.code) ? (procedureAmountOverrides[c.code] ?? (c.defaultFee != null ? String(c.defaultFee) : "")) : ""}
+                      value={selectedProcedureCodes.has(c.code) ? (procedureAmountOverrides[c.code] ?? String(getChargeAmountForCode(c.code))) : ""}
                       onChange={(e) => setProcedureAmount(c.code, e.target.value)}
                       onClick={(e) => e.stopPropagation()}
                       disabled={!selectedProcedureCodes.has(c.code)}
                       className="w-24 px-2 py-1.5 border border-sky/60 rounded text-sm text-right disabled:bg-sky/10 disabled:text-navy/60"
-                      placeholder={c.defaultFee != null ? String(c.defaultFee) : "0"}
+                      placeholder={String(getChargeAmountForCode(c.code))}
                     />
                   </li>
                 ))}
@@ -768,6 +1012,73 @@ export default function Billing() {
                 <button type="button" onClick={() => { setAddChargesModal(false); setSelectedProcedureCodes(new Set()); setProcedureAmountOverrides({}); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium">Cancel</button>
                 <button type="button" onClick={handleAddChargesToTab} disabled={selectedProcedureCodes.size === 0} className="px-4 py-2 bg-navy text-white rounded-lg font-medium hover:bg-navy-light disabled:opacity-50 disabled:cursor-not-allowed">Add to tab</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {writeOffModal && selectedPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="writeoff-title">
+          <div className="bg-white rounded-xl shadow-xl border border-sky/40 p-6 max-w-md w-full">
+            <h2 id="writeoff-title" className="text-lg font-semibold text-navy mb-2">Write-off / adjustment</h2>
+            <p className="text-sm text-navy/70 mb-4">Reduce balance by this amount. Balance due: {formatCurrency(balanceDue)}.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1">Type</label>
+                <select value={writeOffType} onChange={(e) => setWriteOffType(e.target.value as Adjustment["type"])} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
+                  <option value="Write-off">Write-off</option>
+                  <option value="Adjustment">Adjustment</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1">Amount ($)</label>
+                <input type="number" min={0} step={0.01} value={writeOffAmount} onChange={(e) => setWriteOffAmount(e.target.value)} placeholder="0.00" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1">Reason (required)</label>
+                <input type="text" value={writeOffReason} onChange={(e) => setWriteOffReason(e.target.value)} placeholder="e.g. Courtesy discount" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-sky/30">
+              <button type="button" onClick={() => { setWriteOffModal(false); setWriteOffAmount(""); setWriteOffReason(""); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium text-navy hover:bg-sky/10">Cancel</button>
+              <button type="button" onClick={handleWriteOff} disabled={!writeOffAmount.trim() || !writeOffReason.trim() || Number(writeOffAmount) <= 0} className="px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed">Apply</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {eobModal && selectedPatient && eobClaimId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="eob-title">
+          <div className="bg-white rounded-xl shadow-xl border border-sky/40 p-6 max-w-md w-full">
+            <h2 id="eob-title" className="text-lg font-semibold text-navy mb-2">Record EOB / claim payment</h2>
+            <p className="text-sm text-navy/70 mb-4">
+              {insuranceClaims.find((c) => c.id === eobClaimId)?.description ?? "Claim"} — enter payment from insurance.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1">Payment date</label>
+                <input type="date" value={eobPaymentDate} onChange={(e) => setEobPaymentDate(e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-navy mb-1">Paid amount ($) — applied to balance</label>
+                <input type="number" min={0} step={0.01} value={eobPaidAmount} onChange={(e) => setEobPaidAmount(e.target.value)} placeholder="0.00" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm text-navy/70 mb-1">Allowed amount ($, optional)</label>
+                <input type="number" min={0} step={0.01} value={eobAllowedAmount} onChange={(e) => setEobAllowedAmount(e.target.value)} placeholder="—" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm text-navy/70 mb-1">Adjustment ($, optional)</label>
+                <input type="number" step={0.01} value={eobAdjustmentAmount} onChange={(e) => setEobAdjustmentAmount(e.target.value)} placeholder="—" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm text-navy/70 mb-1">Patient responsibility ($, optional)</label>
+                <input type="number" min={0} step={0.01} value={eobPatientResponsibility} onChange={(e) => setEobPatientResponsibility(e.target.value)} placeholder="—" className="w-full px-3 py-2 border border-sky/60 rounded-lg" />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end mt-6 pt-4 border-t border-sky/30">
+              <button type="button" onClick={() => { setEobModal(false); setEobClaimId(null); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium text-navy hover:bg-sky/10">Cancel</button>
+              <button type="button" onClick={handleRecordEob} disabled={eobPaidAmount.trim() === "" || Number(eobPaidAmount) < 0} className="px-4 py-2 bg-sky-dark text-white rounded-lg font-medium hover:bg-navy disabled:opacity-50 disabled:cursor-not-allowed">Record EOB</button>
             </div>
           </div>
         </div>

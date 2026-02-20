@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { getPatientById, updatePatient, deletePatient } from "../storage";
 import { addAuditEntry } from "../storage/auditStorage";
-import type { Patient, PatientImage, PerioExam, ClinicalNoteEntry, FormalTreatmentPlan, Prescription, InvoiceLine, ToothCondition, PatientDocument } from "../types";
-import { APPOINTMENT_TYPES, PATIENT_IMAGE_TYPES } from "../types";
+import type { Patient, PatientImage, PerioExam, ClinicalNoteEntry, FormalTreatmentPlan, Prescription, InvoiceLine, ToothCondition, PatientDocument, Referral, LabCase, StructuredConsent, VisitProcedure } from "../types";
+import { APPOINTMENT_TYPES, PATIENT_IMAGE_TYPES, ASA_STATUSES, REFERRAL_STATUSES, LAB_CASE_STATUSES } from "../types";
 import PerioChart from "../components/PerioChart";
 import ClinicalNotes from "../components/ClinicalNotes";
 import TreatmentPlanView from "../components/TreatmentPlanView";
@@ -182,6 +182,8 @@ export default function PatientChart() {
     toSave.nextAppointmentDurationMinutes = num(toSave.nextAppointmentDurationMinutes) as number | undefined;
     toSave.recallIntervalMonths = num(toSave.recallIntervalMonths) as number | undefined;
     toSave.balanceDue = num(toSave.balanceDue) as number | undefined;
+    toSave.insuranceDeductibleAnnual2 = num(toSave.insuranceDeductibleAnnual2) as number | undefined;
+    toSave.insuranceDeductibleRemaining2 = num(toSave.insuranceDeductibleRemaining2) as number | undefined;
     updatePatient(patient.id, toSave);
     setPatient(getPatientById(patient.id)!);
     setForm(getPatientById(patient.id));
@@ -291,7 +293,10 @@ export default function PatientChart() {
     setStartVisitConsent(false);
   };
 
-  const endVisit = () => {
+  const [endVisitModalOpen, setEndVisitModalOpen] = useState(false);
+  const [endVisitProcedures, setEndVisitProcedures] = useState<VisitProcedure[]>([]);
+
+  const endVisit = (procedures?: VisitProcedure[]) => {
     if (!patient || !patient.currentVisitStartedAt) return;
     const endedAt = new Date().toISOString();
     const durationMinutes = Math.round(
@@ -303,6 +308,7 @@ export default function PatientChart() {
       durationMinutes,
       clinicalSummary: patient.currentVisitNotes || undefined,
       voiceNotesConsent: patient.currentVisitUseVoiceNotes || undefined,
+      procedures: procedures && procedures.length > 0 ? procedures : undefined,
     };
     const nextHistory = [...(patient.visitHistory || []), newEntry];
     updatePatient(patient.id, {
@@ -313,6 +319,24 @@ export default function PatientChart() {
     });
     setPatient(getPatientById(patient.id)!);
     setForm(getPatientById(patient.id));
+    setEndVisitModalOpen(false);
+    setEndVisitProcedures([]);
+  };
+
+  const addEndVisitProcedureRow = () => {
+    setEndVisitProcedures((prev) => [...prev, {}]);
+  };
+
+  const updateEndVisitProcedure = (index: number, field: keyof VisitProcedure, value: string | number | undefined) => {
+    setEndVisitProcedures((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value === "" ? undefined : value };
+      return next;
+    });
+  };
+
+  const removeEndVisitProcedureRow = (index: number) => {
+    setEndVisitProcedures((prev) => prev.filter((_, i) => i !== index));
   };
 
   const saveCurrentVisitNotes = (notes: string) => {
@@ -481,7 +505,7 @@ export default function PatientChart() {
           {isSignedIn ? (
             <button
               type="button"
-              onClick={endVisit}
+              onClick={() => { setEndVisitModalOpen(true); setEndVisitProcedures([]); }}
               className="px-4 py-2 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800"
             >
               End visit
@@ -607,6 +631,58 @@ export default function PatientChart() {
         </div>
       )}
 
+      {endVisitModalOpen && patient?.currentVisitStartedAt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="end-visit-title">
+          <div className="bg-white rounded-xl shadow-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h2 id="end-visit-title" className="text-lg font-semibold text-navy mb-2">End visit</h2>
+            <p className="text-sm text-navy/70 mb-4">Optionally record procedures completed during this visit (CDT code, tooth, description). Leave empty to end without procedures.</p>
+            <div className="space-y-2 mb-4">
+              {endVisitProcedures.map((proc, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-center border border-sky/30 rounded-lg p-2">
+                  <input
+                    type="text"
+                    placeholder="Code (e.g. D2392)"
+                    value={proc.procedureCode ?? ""}
+                    onChange={(e) => updateEndVisitProcedure(idx, "procedureCode", e.target.value)}
+                    className="col-span-3 px-2 py-1.5 border border-sky/60 rounded text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={32}
+                    placeholder="Tooth"
+                    value={proc.tooth ?? ""}
+                    onChange={(e) => updateEndVisitProcedure(idx, "tooth", e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                    className="col-span-2 px-2 py-1.5 border border-sky/60 rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Description"
+                    value={proc.description ?? ""}
+                    onChange={(e) => updateEndVisitProcedure(idx, "description", e.target.value)}
+                    className="col-span-5 px-2 py-1.5 border border-sky/60 rounded text-sm"
+                  />
+                  <button type="button" onClick={() => removeEndVisitProcedureRow(idx)} className="col-span-2 text-xs text-red-600 hover:underline">
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addEndVisitProcedureRow} className="mb-4 px-3 py-1.5 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10">
+              + Add procedure
+            </button>
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => { setEndVisitModalOpen(false); setEndVisitProcedures([]); }} className="px-4 py-2 border border-navy/30 rounded-lg font-medium">
+                Cancel
+              </button>
+              <button type="button" onClick={() => endVisit(endVisitProcedures.length > 0 ? endVisitProcedures : undefined)} className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700">
+                Confirm end visit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-sky/40 p-6 space-y-1">
         <CollapsibleSection id="demographics" title="Demographics" defaultOpen={true}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -616,6 +692,26 @@ export default function PatientChart() {
             <Field label="Phone" value={patient.phone ?? ""} editing={!!editing && !!form} formValue={form?.phone ?? ""} onChange={(v) => update("phone", v)} />
             <Field label="Email" value={patient.email ?? ""} editing={!!editing && !!form} formValue={form?.email ?? ""} type="email" onChange={(v) => update("email", v)} />
             <Field label="Address" value={patient.address ?? ""} editing={!!editing && !!form} formValue={form?.address ?? ""} onChange={(v) => update("address", v)} />
+            <div className="md:col-span-2 border-t border-sky/20 pt-4 mt-2">
+              <p className="text-sm font-medium text-navy/80 mb-2">Preferred contact (recall / reminders)</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-navy/70 mb-1">Method</label>
+                  {editing && form ? (
+                    <select value={form.preferredContactMethod ?? ""} onChange={(e) => update("preferredContactMethod", e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
+                      <option value="">—</option>
+                      <option value="Phone">Phone</option>
+                      <option value="Email">Email</option>
+                      <option value="SMS">SMS</option>
+                      <option value="Any">Any</option>
+                    </select>
+                  ) : (
+                    <p className="text-navy">{patient.preferredContactMethod ?? "—"}</p>
+                  )}
+                </div>
+                <Field label="Preferred time" value={patient.preferredContactTime ?? ""} editing={!!editing && !!form} formValue={form?.preferredContactTime ?? ""} placeholder="e.g. Morning, Afternoon" onChange={(v) => update("preferredContactTime", v)} />
+              </div>
+            </div>
           </div>
         </CollapsibleSection>
 
@@ -626,6 +722,41 @@ export default function PatientChart() {
             <Field label="Current medications" value={patient.currentMedications ?? ""} editing={!!editing && !!form} formValue={form?.currentMedications ?? ""} placeholder="List current medications" listId="patient-current-medications-list" options={COMMON_CURRENT_MEDICATIONS} onChange={(v) => update("currentMedications", v)} />
             <Field label="Emergency contact name" value={patient.emergencyContactName ?? ""} editing={!!editing && !!form} formValue={form?.emergencyContactName ?? ""} onChange={(v) => update("emergencyContactName", v)} />
             <Field label="Emergency contact phone" value={patient.emergencyContactPhone ?? ""} editing={!!editing && !!form} formValue={form?.emergencyContactPhone ?? ""} onChange={(v) => update("emergencyContactPhone", v)} />
+            <div className="md:col-span-2 border-t border-sky/30 pt-4 mt-2">
+              <p className="text-sm font-medium text-navy/80 mb-2">ASA &amp; Pre-med</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-navy/70 mb-1">ASA physical status</label>
+                  {editing && form ? (
+                    <select value={form.asaStatus ?? ""} onChange={(e) => update("asaStatus", e.target.value)} className="w-full px-3 py-2 border border-sky/60 rounded-lg bg-white text-navy">
+                      <option value="">—</option>
+                      {ASA_STATUSES.map((s) => (
+                        <option key={s} value={s}>ASA {s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-navy">{patient.asaStatus ? `ASA ${patient.asaStatus}` : "—"}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm text-navy/70 mb-1">Pre-med required</label>
+                  {editing && form ? (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={!!form.premedRequired} onChange={(e) => setForm(form ? { ...form, premedRequired: e.target.checked } : null)} className="rounded border-sky/60" />
+                      <span className="text-navy text-sm">Yes</span>
+                    </label>
+                  ) : (
+                    <p className="text-navy">{patient.premedRequired ? "Yes" : "No"}</p>
+                  )}
+                </div>
+                <div className="md:col-span-2">
+                  <Field label="Pre-med note" value={patient.premedNote ?? ""} editing={!!editing && !!form} formValue={form?.premedNote ?? ""} placeholder="e.g. 2g Amoxicillin 1hr prior" onChange={(v) => update("premedNote", v)} />
+                </div>
+                <div>
+                  <Field label="Pre-med last given / cleared" value={patient.premedLastGivenDate ? formatDisplayDate(patient.premedLastGivenDate) : ""} editing={!!editing && !!form} formValue={form?.premedLastGivenDate ?? ""} type="date" onChange={(v) => update("premedLastGivenDate", v)} />
+                </div>
+              </div>
+            </div>
           </div>
         </CollapsibleSection>
 
@@ -684,6 +815,17 @@ export default function PatientChart() {
             <Field label="Plan name" value={patient.insurancePlan ?? ""} editing={!!editing && !!form} formValue={form?.insurancePlan ?? ""} listId="patient-insurance-plan-list" options={INSURANCE_PLANS} onChange={(v) => update("insurancePlan", v)} />
             <Field label="Member ID" value={patient.insuranceMemberId ?? ""} editing={!!editing && !!form} formValue={form?.insuranceMemberId ?? ""} onChange={(v) => update("insuranceMemberId", v)} />
             <Field label="Group number" value={patient.insuranceGroupNumber ?? ""} editing={!!editing && !!form} formValue={form?.insuranceGroupNumber ?? ""} onChange={(v) => update("insuranceGroupNumber", v)} />
+            <div className="md:col-span-2 border-t border-sky/20 pt-4 mt-2">
+              <p className="text-sm font-medium text-navy/80 mb-2">Secondary insurance</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Provider" value={patient.insuranceProvider2 ?? ""} editing={!!editing && !!form} formValue={form?.insuranceProvider2 ?? ""} onChange={(v) => update("insuranceProvider2", v)} />
+                <Field label="Plan name" value={patient.insurancePlan2 ?? ""} editing={!!editing && !!form} formValue={form?.insurancePlan2 ?? ""} listId="patient-insurance-plan2-list" options={INSURANCE_PLANS} onChange={(v) => update("insurancePlan2", v)} />
+                <Field label="Member ID" value={patient.insuranceMemberId2 ?? ""} editing={!!editing && !!form} formValue={form?.insuranceMemberId2 ?? ""} onChange={(v) => update("insuranceMemberId2", v)} />
+                <Field label="Group number" value={patient.insuranceGroupNumber2 ?? ""} editing={!!editing && !!form} formValue={form?.insuranceGroupNumber2 ?? ""} onChange={(v) => update("insuranceGroupNumber2", v)} />
+                <Field label="Deductible (annual $)" value={patient.insuranceDeductibleAnnual2 != null ? String(patient.insuranceDeductibleAnnual2) : ""} editing={!!editing && !!form} formValue={form?.insuranceDeductibleAnnual2 != null ? String(form.insuranceDeductibleAnnual2) : ""} type="number" onChange={(v) => update("insuranceDeductibleAnnual2", v)} />
+                <Field label="Deductible remaining ($)" value={patient.insuranceDeductibleRemaining2 != null ? String(patient.insuranceDeductibleRemaining2) : ""} editing={!!editing && !!form} formValue={form?.insuranceDeductibleRemaining2 != null ? String(form.insuranceDeductibleRemaining2) : ""} type="number" onChange={(v) => update("insuranceDeductibleRemaining2", v)} />
+              </div>
+            </div>
           </div>
         </CollapsibleSection>
 
@@ -1005,6 +1147,57 @@ export default function PatientChart() {
           )}
         </CollapsibleSection>
 
+        <CollapsibleSection id="consents" title="Consents" badge={patient.consents?.length ? `${patient.consents.length}` : undefined} subtitle="Structured consent records (procedure/treatment, date, witness).">
+          <ul className="space-y-2 mb-3">
+            {(patient.consents ?? []).map((c) => (
+              <li key={c.id} className="py-2 border-b border-sky/20 last:border-0 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-navy">{c.procedureOrTreatment}</span>
+                  <span className="text-navy/70">{formatDisplayDate(c.date)}</span>
+                </div>
+                {c.signedBy && <p className="text-navy/60 text-xs mt-0.5">Signed by: {c.signedBy}</p>}
+                {isSignedIn && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updatePatient(patient.id, { consents: (patient.consents ?? []).filter((x) => x.id !== c.id) });
+                      setPatient(getPatientById(patient.id)!);
+                      setForm(getPatientById(patient.id));
+                    }}
+                    className="text-xs text-red-600 hover:underline mt-1"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {isSignedIn && (
+            <button
+              type="button"
+              onClick={() => {
+                const procedureOrTreatment = prompt("Procedure or treatment consented to", "");
+                const date = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10));
+                const signedBy = prompt("Signed by (patient/guardian)", "");
+                if (!procedureOrTreatment || !date) return;
+                const newConsent: StructuredConsent = {
+                  id: crypto.randomUUID(),
+                  procedureOrTreatment,
+                  date,
+                  signedBy: signedBy || undefined,
+                  addedAt: new Date().toISOString(),
+                };
+                updatePatient(patient.id, { consents: [...(patient.consents ?? []), newConsent] });
+                setPatient(getPatientById(patient.id)!);
+                setForm(getPatientById(patient.id));
+              }}
+              className="px-3 py-2 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
+            >
+              + Add consent
+            </button>
+          )}
+        </CollapsibleSection>
+
         <CollapsibleSection id="documents" title="Documents" badge={patient.documents?.length ? `${patient.documents.length}` : undefined} subtitle="Consent forms, referrals, lab slips, insurance documents.">
           <ul className="space-y-2 mb-3">
             {(patient.documents ?? []).map((doc) => (
@@ -1045,6 +1238,165 @@ export default function PatientChart() {
               className="px-3 py-2 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
             >
               + Add document
+            </button>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection id="referrals" title="Referrals" badge={patient.referrals?.length ? `${patient.referrals.length}` : undefined} subtitle="Outbound referrals to specialists. Track status and response.">
+          <ul className="space-y-2 mb-3">
+            {(patient.referrals ?? []).map((ref) => (
+              <li key={ref.id} className="py-2 border-b border-sky/20 last:border-0 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-navy">{ref.referredTo}</span>
+                  <span className="text-navy/70">{formatDisplayDate(ref.date)}</span>
+                </div>
+                <p className="text-navy/80 mt-0.5">{ref.reason}</p>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  {isSignedIn ? (
+                    <select
+                      value={ref.status}
+                      onChange={(e) => {
+                        const status = e.target.value as Referral["status"];
+                        const next = (patient.referrals ?? []).map((r) => (r.id === ref.id ? { ...r, status } : r));
+                        updatePatient(patient.id, { referrals: next });
+                        setPatient(getPatientById(patient.id)!);
+                        setForm(getPatientById(patient.id));
+                      }}
+                      className="text-xs px-2 py-1 border border-sky/60 rounded bg-white text-navy"
+                    >
+                      {REFERRAL_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${ref.status === "Completed" ? "bg-green-100 text-green-800" : ref.status === "Declined" ? "bg-red-100 text-red-800" : "bg-sky/20 text-navy"}`}>
+                      {ref.status}
+                    </span>
+                  )}
+                  {ref.responseNote && <span className="text-navy/70 text-xs">{ref.responseNote}</span>}
+                </div>
+                {isSignedIn && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updatePatient(patient.id, { referrals: (patient.referrals ?? []).filter((r) => r.id !== ref.id) });
+                      setPatient(getPatientById(patient.id)!);
+                      setForm(getPatientById(patient.id));
+                    }}
+                    className="text-xs text-red-600 hover:underline mt-1"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {isSignedIn && (
+            <button
+              type="button"
+              onClick={() => {
+                const referredTo = prompt("Referred to (name or practice)", "");
+                const reason = prompt("Reason / specialty", "");
+                const date = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10));
+                if (!referredTo || !date) return;
+                const newRef: Referral = {
+                  id: crypto.randomUUID(),
+                  referredTo,
+                  reason: reason ?? "",
+                  date,
+                  status: "Sent",
+                  addedAt: new Date().toISOString(),
+                };
+                updatePatient(patient.id, { referrals: [...(patient.referrals ?? []), newRef] });
+                setPatient(getPatientById(patient.id)!);
+                setForm(getPatientById(patient.id));
+              }}
+              className="px-3 py-2 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
+            >
+              + Add referral
+            </button>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection id="lab-cases" title="Lab cases" badge={patient.labCases?.length ? `${patient.labCases.length}` : undefined} subtitle="Crowns, bridges, dentures. Track sent, expected, and received.">
+          <ul className="space-y-2 mb-3">
+            {(patient.labCases ?? []).map((lab) => (
+              <li key={lab.id} className="py-2 border-b border-sky/20 last:border-0 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium text-navy">{lab.labName} · {lab.caseType}</span>
+                  {isSignedIn ? (
+                    <select
+                      value={lab.status}
+                      onChange={(e) => {
+                        const status = e.target.value as LabCase["status"];
+                        const next = (patient.labCases ?? []).map((l) => (l.id === lab.id ? { ...l, status } : l));
+                        if (status === "Received" || status === "Delivered") {
+                          const withDate = next.map((l) => (l.id === lab.id ? { ...l, status, receivedDate: l.receivedDate ?? new Date().toISOString().slice(0, 10) } : l));
+                          updatePatient(patient.id, { labCases: withDate });
+                        } else {
+                          updatePatient(patient.id, { labCases: next });
+                        }
+                        setPatient(getPatientById(patient.id)!);
+                        setForm(getPatientById(patient.id));
+                      }}
+                      className="text-xs px-2 py-1 border border-sky/60 rounded bg-white text-navy"
+                    >
+                      {LAB_CASE_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${lab.status === "Received" || lab.status === "Delivered" ? "bg-green-100 text-green-800" : "bg-sky/20 text-navy"}`}>
+                      {lab.status}
+                    </span>
+                  )}
+                </div>
+                <p className="text-navy/70 mt-0.5">
+                  Sent {formatDisplayDate(lab.sentDate)}
+                  {lab.expectedDate && ` · Expected ${formatDisplayDate(lab.expectedDate)}`}
+                  {lab.receivedDate && ` · Received ${formatDisplayDate(lab.receivedDate)}`}
+                  {lab.toothOrTeeth && ` · Tooth/teeth: ${lab.toothOrTeeth}`}
+                </p>
+                {lab.prescriptionNote && <p className="text-navy/60 text-xs mt-0.5">{lab.prescriptionNote}</p>}
+                {isSignedIn && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updatePatient(patient.id, { labCases: (patient.labCases ?? []).filter((l) => l.id !== lab.id) });
+                      setPatient(getPatientById(patient.id)!);
+                      setForm(getPatientById(patient.id));
+                    }}
+                    className="text-xs text-red-600 hover:underline mt-1"
+                  >
+                    Remove
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {isSignedIn && (
+            <button
+              type="button"
+              onClick={() => {
+                const labName = prompt("Lab name", "");
+                const caseType = prompt("Case type (e.g. Crown, Bridge, Denture)", "Crown");
+                const sentDate = prompt("Sent date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10));
+                if (!labName || !sentDate) return;
+                const newLab: LabCase = {
+                  id: crypto.randomUUID(),
+                  labName,
+                  caseType: caseType ?? "Crown",
+                  sentDate,
+                  status: "Sent",
+                  addedAt: new Date().toISOString(),
+                };
+                updatePatient(patient.id, { labCases: [...(patient.labCases ?? []), newLab] });
+                setPatient(getPatientById(patient.id)!);
+                setForm(getPatientById(patient.id));
+              }}
+              className="px-3 py-2 border border-sky/60 rounded-lg text-sm font-medium text-navy hover:bg-sky/10"
+            >
+              + Add lab case
             </button>
           )}
         </CollapsibleSection>
@@ -1120,6 +1472,11 @@ export default function PatientChart() {
                   </div>
                   {v.clinicalSummary && (
                     <p className="mt-1 text-navy/70 whitespace-pre-wrap text-xs">{v.clinicalSummary}</p>
+                  )}
+                  {v.procedures && v.procedures.length > 0 && (
+                    <p className="mt-1 text-navy/60 text-xs">
+                      Procedures: {v.procedures.map((pr) => [pr.procedureCode, pr.tooth ? `#${pr.tooth}` : null, pr.description].filter(Boolean).join(" · ")).join("; ")}
+                    </p>
                   )}
                 </li>
               ))}

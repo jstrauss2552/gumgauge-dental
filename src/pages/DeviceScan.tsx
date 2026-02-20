@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import type { PatientImage, GumGaugeExam, GumGaugeToothReading } from "../types";
 import { densityToHealthResult, densityToLightPercent } from "../types";
 import GumGaugeMouthView from "../components/GumGaugeMouthView";
+import ViewerErrorBoundary from "../components/ViewerErrorBoundary";
 
 const MAX_FILE_SIZE_MB = 3;
 /** Scan runs 6–10 seconds: 8 steps × 1s = 8 seconds. Light flashes lower (dimmer) during scan. */
@@ -334,13 +335,23 @@ export default function DeviceScan() {
             <p className="text-xs text-navy/60 mb-3">
               Select a scan date and click a tooth to see light penetration % and health. Compare past scans with the dropdown.
             </p>
-            <GumGaugeMouthView
-              exams={gumGaugeExams}
-              selectedExamId={selectedExamId ?? gumGaugeExams[gumGaugeExams.length - 1]?.id ?? null}
-              onSelectExamId={setSelectedExamId}
-              selectedTooth={selectedTooth}
-              onSelectTooth={setSelectedTooth}
-            />
+            <ViewerErrorBoundary
+              fallback={
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+                  <p className="font-medium">Scan results view couldn&apos;t load</p>
+                  <p className="mt-1">Try refreshing the page. If it keeps happening, use the patient chart to view scan data.</p>
+                  <Link to={`/dashboard/patients/${selectedPatient.id}`} className="mt-2 inline-block text-sky-dark font-medium hover:underline">Open patient chart →</Link>
+                </div>
+              }
+            >
+              <GumGaugeMouthView
+                exams={gumGaugeExams}
+                selectedExamId={selectedExamId ?? gumGaugeExams[gumGaugeExams.length - 1]?.id ?? null}
+                onSelectExamId={setSelectedExamId}
+                selectedTooth={selectedTooth}
+                onSelectTooth={setSelectedTooth}
+              />
+            </ViewerErrorBoundary>
           </section>
         )}
 

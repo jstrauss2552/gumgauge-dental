@@ -7,17 +7,44 @@ export interface Patient {
   phone?: string;
   email?: string;
   address?: string;
+  /** Preferred contact method for recall/reminders. */
+  preferredContactMethod?: "Phone" | "Email" | "SMS" | "Any";
+  /** Preferred time of day (e.g. Morning, Afternoon). */
+  preferredContactTime?: string;
   // Medical history (relevant to dental treatment)
   allergies?: string;
   medicalConditions?: string;
   currentMedications?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
+  /** ASA physical status (I–V) for surgical/pre-med planning. */
+  asaStatus?: AsaStatus;
+  /** Pre-medication required (e.g. antibiotic prophylaxis). */
+  premedRequired?: boolean;
+  /** Pre-med instructions (e.g. "2g Amoxicillin 1hr prior"). */
+  premedNote?: string;
+  /** Last date pre-med was given or "cleared by physician" (ISO date). */
+  premedLastGivenDate?: string;
+  /** Structured consent records (procedure/treatment, date, witness). */
+  consents?: StructuredConsent[];
+  /** Outbound referrals with status. */
+  referrals?: Referral[];
+  /** Lab cases (crown, bridge, denture, etc.) with sent/expected/received. */
+  labCases?: LabCase[];
   // Insurance
   insuranceProvider?: string;
   insurancePlan?: string;
   insuranceMemberId?: string;
   insuranceGroupNumber?: string;
+  /** Secondary insurance */
+  insuranceProvider2?: string;
+  insurancePlan2?: string;
+  insuranceMemberId2?: string;
+  insuranceGroupNumber2?: string;
+  insuranceDeductibleAnnual2?: number;
+  insuranceDeductibleRemaining2?: number;
+  /** Write-offs and adjustments (reduce balance without payment). */
+  adjustments?: Adjustment[];
   // Appointments & clinical
   dateOfAppointment: string;
   dateOfNextAppointment: string;
@@ -121,6 +148,14 @@ export interface PatientDocument {
   addedAt: string;
 }
 
+/** Procedure completed during a visit (CDT + tooth for production/charting). */
+export interface VisitProcedure {
+  procedureCode?: string;
+  /** Tooth number 1–32 if applicable. */
+  tooth?: number;
+  description?: string;
+}
+
 export interface VisitHistoryEntry {
   startedAt: string; // ISO
   endedAt: string;   // ISO
@@ -129,7 +164,63 @@ export interface VisitHistoryEntry {
   clinicalSummary?: string;
   /** Whether AI voice notes were used with consent for this visit. */
   voiceNotesConsent?: boolean;
+  /** Procedures completed in this visit (CDT + tooth). */
+  procedures?: VisitProcedure[];
 }
+
+/** ASA physical status classification (I–V). */
+export const ASA_STATUSES = ["I", "II", "III", "IV", "V"] as const;
+export type AsaStatus = (typeof ASA_STATUSES)[number];
+
+/** Structured consent: procedure/treatment, date, signedBy, witness. */
+export interface StructuredConsent {
+  id: string;
+  /** Procedure or treatment consented to. */
+  procedureOrTreatment: string;
+  date: string; // ISO date
+  /** Patient or guardian who signed. */
+  signedBy?: string;
+  /** Staff ID of witness. */
+  witnessStaffId?: string;
+  /** Optional link to PatientDocument (scanned form). */
+  documentId?: string;
+  addedAt: string;
+}
+
+/** Outbound referral with status. */
+export interface Referral {
+  id: string;
+  /** Specialist or practice name. */
+  referredTo: string;
+  /** Specialty or reason. */
+  reason: string;
+  date: string; // ISO date
+  status: ReferralStatus;
+  /** Response from specialist or follow-up note. */
+  responseNote?: string;
+  addedAt: string;
+}
+
+export const REFERRAL_STATUSES = ["Sent", "Accepted", "Completed", "Declined"] as const;
+export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
+
+/** Lab case (crown, bridge, denture, etc.). */
+export interface LabCase {
+  id: string;
+  labName: string;
+  caseType: string; // e.g. "Crown", "Bridge", "Denture", "Implant abutment"
+  sentDate: string; // ISO date
+  expectedDate?: string; // ISO date
+  receivedDate?: string; // ISO date
+  status: LabCaseStatus;
+  /** Tooth/teeth (e.g. "3", "14-15"). */
+  toothOrTeeth?: string;
+  prescriptionNote?: string;
+  addedAt: string;
+}
+
+export const LAB_CASE_STATUSES = ["Sent", "In progress", "Received", "Delivered"] as const;
+export type LabCaseStatus = (typeof LAB_CASE_STATUSES)[number];
 
 /** All imaging types available when attaching images to a patient chart */
 export const PATIENT_IMAGE_TYPES = [
@@ -202,6 +293,60 @@ export interface Staff {
 }
 
 export type StaffInput = Omit<Staff, "id" | "createdAt" | "updatedAt">;
+
+/** Staff availability: when a provider is available for appointments. Used to build slots and prevent booking when out. */
+export interface StaffAvailability {
+  id: string;
+  staffId: string;
+  /** 0 = Sunday, 1 = Monday, … 6 = Saturday. */
+  dayOfWeek: number;
+  /** Start time "HH:mm" (e.g. "09:00"). */
+  startTime: string;
+  /** End time "HH:mm" (e.g. "17:00"). */
+  endTime: string;
+  /** Optional: first date this block is effective (ISO date). */
+  effectiveFrom?: string;
+  /** Optional: last date this block is effective (ISO date). */
+  effectiveTo?: string;
+  addedAt: string;
+}
+
+// --- Scheduling (Tier 1) ---
+
+/** Operatory / room for appointments. */
+export interface Operatory {
+  id: string;
+  name: string;
+  /** Default appointment duration in minutes when not specified. */
+  defaultDurationMinutes?: number;
+}
+
+/** First-class appointment. Enables multiple appointments per day, conflict detection, and operatory/provider grid. */
+export interface Appointment {
+  id: string;
+  patientId: string;
+  /** Staff ID of provider (dentist, hygienist, etc.). */
+  providerId: string;
+  /** Operatory ID; optional for backward compat. */
+  operatoryId?: string;
+  /** Start datetime (ISO). */
+  start: string;
+  /** End datetime (ISO). */
+  end: string;
+  /** Appointment type (e.g. Cleaning, New patient). */
+  type?: string;
+  /** When type is "Other", free-text description. */
+  typeOther?: string;
+  /** Flow status. */
+  status?: AppointmentStatus;
+  /** When patient checked in (ISO); for wait-time and reporting. */
+  checkedInAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AppointmentInput = Omit<Appointment, "id" | "createdAt" | "updatedAt">;
 
 // --- Clinical tools ---
 
@@ -327,6 +472,8 @@ export interface InvoiceLine {
   /** Portion patient pays out of pocket. */
   amountOutOfPocket?: number;
   status?: "Pending" | "Paid" | "Partially paid";
+  /** Staff ID of provider who performed this procedure (for production by provider). */
+  providerId?: string;
   addedAt: string; // ISO
 }
 
@@ -356,6 +503,41 @@ export interface InsuranceClaim {
   amount: number;
   status: "Draft" | "Sent" | "Paid" | "Partially paid" | "Denied";
   note?: string;
+  /** EOB/ERA payments applied to this claim. */
+  claimPayments?: ClaimPayment[];
+}
+
+/** EOB/ERA: payment or adjustment applied to a claim. */
+export interface ClaimPayment {
+  id: string;
+  claimId: string;
+  paidAmount: number;
+  allowedAmount?: number;
+  adjustmentAmount?: number;
+  patientResponsibility?: number;
+  paymentDate: string; // ISO date
+  addedAt: string;
+}
+
+/** Write-off or adjustment (reduces balance without payment). */
+export interface Adjustment {
+  id: string;
+  date: string; // ISO date
+  amount: number;
+  reason: string;
+  type: "Write-off" | "Adjustment";
+  staffId?: string;
+  addedAt: string;
+}
+
+/** Fee schedule entry: override default fee by plan (e.g. insurance plan name). */
+export interface FeeScheduleEntry {
+  id: string;
+  /** Plan identifier (e.g. insurance plan name, "PPO", "Self-pay"). */
+  planIdentifier: string;
+  procedureCode: string;
+  fee: number;
+  addedAt: string;
 }
 
 /** Prescription (real-life structure: sig, quantity, refills, prescriber). */

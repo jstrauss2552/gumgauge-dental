@@ -25,6 +25,7 @@ export default function AuditLog() {
             <tr>
               <th className="text-left py-3 px-4 font-medium text-navy">Time</th>
               <th className="text-left py-3 px-4 font-medium text-navy">Actor</th>
+              <th className="text-left py-3 px-4 font-medium text-navy">Staff ID</th>
               <th className="text-left py-3 px-4 font-medium text-navy">Action</th>
               <th className="text-left py-3 px-4 font-medium text-navy">Entity</th>
               <th className="text-left py-3 px-4 font-medium text-navy">Details</th>
@@ -32,12 +33,13 @@ export default function AuditLog() {
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-navy/60">No audit entries.</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-navy/60">No audit entries.</td></tr>
             ) : (
               filtered.map((e) => (
                 <tr key={e.id} className="border-b border-sky/20 hover:bg-sky/5">
                   <td className="py-2 px-4 text-navy/80">{new Date(e.timestamp).toLocaleString()}</td>
                   <td className="py-2 px-4">{e.actor ?? "—"}</td>
+                  <td className="py-2 px-4 text-navy/70 font-mono text-xs">{e.actorStaffId ?? "—"}</td>
                   <td className="py-2 px-4">{e.action}</td>
                   <td className="py-2 px-4">
                     {e.entityType === "patient" && <Link to={`/dashboard/patients/${e.entityId}`} className="text-sky-dark hover:underline">Chart</Link>}

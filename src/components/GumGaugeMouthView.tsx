@@ -1,7 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useMemo, Suspense, lazy } from "react";
 import type { GumGaugeExam, GumGaugeToothReading } from "../types";
 import { formatDisplayDate } from "../utils/dateFormat";
-import Mouth3DViewer from "./Mouth3DViewer";
+import ViewerErrorBoundary from "./ViewerErrorBoundary";
+
+const Mouth3DViewer = lazy(() => import("./Mouth3DViewer"));
 
 /** Tooth layout: upper arch 1-16 (top), lower arch 17-32 (bottom). Universal numbering. */
 const UPPER_TEETH = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
@@ -76,12 +78,29 @@ export default function GumGaugeMouthView({
 
       <div>
         <h3 className="text-sm font-semibold text-navy mb-2">3D view</h3>
-        <Mouth3DViewer
-          readings={exam?.teeth ?? []}
-          selectedTooth={selectedTooth}
-          onSelectTooth={onSelectTooth}
-          height={320}
-        />
+        <ViewerErrorBoundary
+          fallback={(error) => (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+              <p className="font-medium">3D view couldn&apos;t load</p>
+              <p className="mt-1">Use the 2D map below to select teeth and view results.</p>
+              {error?.message && (
+                <p className="mt-2 text-xs font-mono bg-amber-100/50 rounded px-2 py-1 break-all" title="Technical details">
+                  Reason: {error.message}
+                </p>
+              )}
+              <p className="mt-2 text-xs text-amber-700">Open the browser console (F12 → Console) for full error details.</p>
+            </div>
+          )}
+        >
+          <Suspense fallback={<div className="rounded-xl border border-sky/40 bg-sky/5 p-4 text-center text-navy/60 text-sm" style={{ height: 320 }}>Loading 3D view…</div>}>
+            <Mouth3DViewer
+              readings={exam?.teeth ?? []}
+              selectedTooth={selectedTooth}
+              onSelectTooth={onSelectTooth}
+              height={320}
+            />
+          </Suspense>
+        </ViewerErrorBoundary>
       </div>
 
       <div>

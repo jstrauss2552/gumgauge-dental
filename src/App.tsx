@@ -21,6 +21,7 @@ import Billing from "./pages/Billing";
 import Analytics from "./pages/Analytics";
 import ClinicRegistration from "./pages/ClinicRegistration";
 import ClinicLog from "./pages/ClinicLog";
+import Backup from "./pages/Backup";
 import Admin from "./pages/Admin";
 
 export default function App() {
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="device-scan" element={<DeviceScan />} />
         <Route path="recall" element={<RecallReport />} />
         <Route path="audit" element={<AuditLog />} />
+        <Route path="backup" element={<Backup />} />
         <Route path="clinic" element={<ClinicRegistration />} />
         <Route path="clinic-log" element={<ClinicLog />} />
       </Route>

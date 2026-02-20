@@ -88,3 +88,15 @@ export function saveClinic(clinic: Partial<Clinic> & { name: string }): Clinic {
   } catch {}
   return next;
 }
+
+/** Replace clinic entirely (e.g. for import/restore). Pass null to clear. */
+export function setClinic(clinic: Clinic | null): void {
+  try {
+    const key = getClinicStorageKey();
+    if (clinic === null) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(clinic));
+    }
+  } catch {}
+}

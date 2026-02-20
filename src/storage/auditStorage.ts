@@ -9,6 +9,8 @@ export interface AuditEntry {
   id: string;
   timestamp: string; // ISO
   actor?: string; // staff name or "System"
+  /** Staff ID who performed the action (when signed in). */
+  actorStaffId?: string;
   action: string; // e.g. "patient.update", "patient.create", "staff.delete"
   entityType: string; // "patient" | "staff" | "appointment"
   entityId: string;
@@ -20,6 +22,7 @@ const DEMO_STORAGE_KEY = "gumgauge-demo-audit";
 const MAX_ENTRIES = 2000;
 
 let currentActor: string | undefined;
+let currentActorStaffId: string | undefined;
 
 function isDemoMode(): boolean {
   try {
@@ -45,12 +48,17 @@ function ensureDemoAuditSeed(): void {
   }
 }
 
-export function setAuditActor(name: string | undefined) {
+export function setAuditActor(name: string | undefined, staffId?: string) {
   currentActor = name;
+  currentActorStaffId = staffId;
 }
 
 export function getAuditActor(): string | undefined {
   return currentActor;
+}
+
+export function getAuditActorStaffId(): string | undefined {
+  return currentActorStaffId;
 }
 
 function getEntries(): AuditEntry[] {
@@ -73,7 +81,12 @@ function saveEntries(entries: AuditEntry[], key: string) {
 export function addAuditEntry(entry: Omit<AuditEntry, "id">): void {
   const key = getAuditStorageKey();
   const list = getEntries();
-  list.push({ ...entry, id: crypto.randomUUID(), actor: entry.actor ?? currentActor ?? "System" });
+  list.push({
+    ...entry,
+    id: crypto.randomUUID(),
+    actor: entry.actor ?? currentActor ?? "System",
+    actorStaffId: entry.actorStaffId ?? currentActorStaffId,
+  });
   saveEntries(list, key);
 }
 
@@ -90,5 +103,13 @@ export function getAuditEntries(options?: { entityType?: string; entityId?: stri
 export function clearAuditLog(): void {
   try {
     localStorage.setItem(getAuditStorageKey(), JSON.stringify([]));
+  } catch {}
+}
+
+/** Replace audit log with entries (e.g. for import/restore). Trims to MAX_ENTRIES. */
+export function setAuditEntries(entries: AuditEntry[]): void {
+  try {
+    const trimmed = (entries ?? []).slice(-MAX_ENTRIES);
+    localStorage.setItem(getAuditStorageKey(), JSON.stringify(trimmed));
   } catch {}
 }

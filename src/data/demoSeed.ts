@@ -1,8 +1,8 @@
 /**
- * Demo mode seed data: clinic, patients, staff, and audit with full details.
+ * Demo mode seed data: clinic, patients, staff, operatories, appointments, and audit with full details.
  * Used only when DEMO_MODE_KEY is set; ensures demo is fully operational with no empty views.
  */
-import type { Patient, Clinic, Staff } from "../types";
+import type { Patient, Clinic, Staff, Operatory, Appointment, Referral, LabCase } from "../types";
 import { densityToHealthResult } from "../types";
 import type { AuditEntry } from "../storage/auditStorage";
 
@@ -29,6 +29,13 @@ export const DEMO_PATIENT_IDS = [
   "demo-patient-008",
 ] as const;
 
+/** Stable IDs for demo operatories. */
+export const DEMO_OPERATORY_IDS = {
+  op1: "demo-op-001",
+  op2: "demo-op-002",
+  op3: "demo-op-003",
+} as const;
+
 function getTodayLocal(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -54,6 +61,87 @@ export function getDemoClinic(): Clinic {
     registeredAt: now,
     deviceCount: 2,
   };
+}
+
+export function getDemoOperatories(): Operatory[] {
+  return [
+    { id: DEMO_OPERATORY_IDS.op1, name: "Op 1", defaultDurationMinutes: 45 },
+    { id: DEMO_OPERATORY_IDS.op2, name: "Op 2", defaultDurationMinutes: 45 },
+    { id: DEMO_OPERATORY_IDS.op3, name: "Op 3", defaultDurationMinutes: 60 },
+  ];
+}
+
+function parseTimeToMinutes(t: string | undefined): number {
+  if (!t) return 9 * 60; // 09:00
+  const [h, m] = t.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function toISODateTime(date: string, timeStr: string | undefined, durationMinutes: number): { start: string; end: string } {
+  const startMins = parseTimeToMinutes(timeStr);
+  const start = new Date(date + "T12:00:00");
+  start.setHours(Math.floor(startMins / 60), startMins % 60, 0, 0);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function doctorToProviderId(doctor: string | undefined): string {
+  if (!doctor) return DEMO_STAFF_IDS.dentist1;
+  if (doctor.includes("Torres")) return DEMO_STAFF_IDS.dentist2;
+  if (doctor.includes("Chen")) return DEMO_STAFF_IDS.dentist1;
+  return DEMO_STAFF_IDS.dentist1;
+}
+
+function roomToOperatoryId(room: string | undefined): string | undefined {
+  if (!room) return undefined;
+  if (room.includes("1")) return DEMO_OPERATORY_IDS.op1;
+  if (room.includes("2")) return DEMO_OPERATORY_IDS.op2;
+  if (room.includes("3")) return DEMO_OPERATORY_IDS.op3;
+  return undefined;
+}
+
+export function getDemoAppointments(): Appointment[] {
+  const now = new Date().toISOString();
+  const patients = getDemoPatients();
+  const appointments: Appointment[] = [];
+  patients.forEach((p, idx) => {
+    if (p.dateOfAppointment) {
+      const dur = p.appointmentDurationMinutes ?? 45;
+      const { start, end } = toISODateTime(p.dateOfAppointment, p.appointmentTime, dur);
+      appointments.push({
+        id: `demo-apt-${idx}-current`,
+        patientId: p.id,
+        providerId: doctorToProviderId(p.appointmentDoctor),
+        operatoryId: roomToOperatoryId(p.appointmentRoom),
+        start,
+        end,
+        type: p.appointmentType,
+        typeOther: p.appointmentTypeOther,
+        status: p.appointmentStatus,
+        notes: undefined,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    if (p.dateOfNextAppointment) {
+      const dur = p.nextAppointmentDurationMinutes ?? 30;
+      const { start, end } = toISODateTime(p.dateOfNextAppointment, p.nextAppointmentTime, dur);
+      appointments.push({
+        id: `demo-apt-${idx}-next`,
+        patientId: p.id,
+        providerId: doctorToProviderId(p.appointmentDoctor),
+        operatoryId: roomToOperatoryId(p.nextAppointmentRoom),
+        start,
+        end,
+        type: p.appointmentType,
+        typeOther: p.appointmentTypeOther,
+        notes: undefined,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  });
+  return appointments;
 }
 
 export function getDemoPatients(): Patient[] {
@@ -306,6 +394,10 @@ export function getDemoPatients(): Patient[] {
       allergies: "Sulfa drugs",
       medicalConditions: "Hypertension, Blood thinners (anticoagulants)",
       currentMedications: "Amlodipine 5mg, Warfarin 5mg daily",
+      asaStatus: "III",
+      premedRequired: true,
+      premedNote: "Medical clearance obtained for anticoagulation; use local hemostasis.",
+      premedLastGivenDate: lastWeek,
       emergencyContactName: "Susan Johnson",
       emergencyContactPhone: "(512) 555-0405",
       insuranceProvider: "UnitedHealthcare",
@@ -372,6 +464,12 @@ export function getDemoPatients(): Patient[] {
       documents: [
           { id: "doc1", type: "Referral", title: "Medical clearance - anticoagulation", date: lastWeek, note: "Cleared for RCT", addedAt: `${lastWeek}T14:00:00` },
         ],
+      referrals: [
+        { id: "ref1", referredTo: "Cardiology Associates", reason: "Medical clearance for anticoagulation prior to RCT", date: lastWeek, status: "Completed", responseNote: "Cleared for RCT", addedAt: `${lastWeek}T14:00:00` },
+      ],
+      labCases: [
+        { id: "lab1", labName: "Premier Dental Lab", caseType: "Crown", sentDate: tomorrow, expectedDate: addDays(today, 14), status: "Sent", toothOrTeeth: "3", prescriptionNote: "D2740 PFM crown #3 post-RCT", addedAt: now },
+      ],
       lastAppointmentReminderSent: addDays(today, -1),
       createdAt: `${addDays(today, -500)}T00:00:00`,
       updatedAt: now,
